@@ -87,6 +87,12 @@ typedef struct {
   flouble sigma_temp_d;
   flouble nu0_s;
   flouble nu0_d;
+
+  unsigned long seed;
+  int n_samples;
+
+  int dbg_ipix;
+  flouble *dbg_extra;
 } ParamFGRM;
 
 //Defined in common.c
@@ -95,8 +101,11 @@ void report_error(int level,char *fmt,...);
 void *my_malloc(size_t size);
 void *my_calloc(size_t nmemb,size_t size);
 FILE *my_fopen(const char *path,const char *mode);
+size_t my_fwrite(const void *ptr, size_t size, size_t nmemb,FILE *stream);
 void param_fgrm_free(ParamFGRM *par);
 ParamFGRM *read_params(char *fname);
+void write_output(ParamFGRM *par);
+void write_debug_info(ParamFGRM *par);
 
 //Defined in healpix_extra.c
 long he_nalms(int lmax);
@@ -117,5 +126,35 @@ void he_udgrade(flouble *map_in,long nside_in,
 		int nest);
 double *he_generate_beam_window(int lmax,double fwhm_amin);
 void he_alter_alm(int lmax,double fwhm_amin,fcomplex *alms,double *window);
+
+//Defined in rng.c
+#define RNG_NRAN 624
+#define RNG_MRAN 397
+#define RNG_MATRIX_A 0x9908b0df
+#define RNG_UPPER_MASK 0x80000000UL
+#define RNG_LOWER_MASK 0x7fffffffUL
+typedef struct {
+  unsigned long mt[RNG_NRAN];
+  int mti;
+  int calc_gauss;
+  double u;
+  double phi;
+} Rng;
+Rng *init_rng(unsigned long seed);
+void end_rng(Rng *rng);
+unsigned long rand_ulong(Rng *rng);
+double rand_real01(Rng *rng);
+double rand_gauss(Rng *rng);
+
+//Defined in fgrm.c
+typedef struct {
+  flouble *f_matrix;
+  gsl_matrix **cov_inv;
+  gsl_vector **vec_mean;
+  Rng *rng;
+} PixelState;
+PixelState *pixel_state_new(ParamFGRM *par,unsigned long seed);
+void pixel_state_free(PixelState *pst,ParamFGRM *par);
+flouble *clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big,int n_samples);
 
 #endif //_COMMON_FGRM

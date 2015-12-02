@@ -1,5 +1,13 @@
 #include "common.h"
 
+size_t my_fwrite(const void *ptr, size_t size, size_t nmemb,FILE *stream)
+{
+  if(fwrite(ptr,size,nmemb,stream)!=nmemb)
+    report_error(1,"Error fwriting\n");
+
+  return nmemb;
+}
+
 int my_linecount(FILE *f)
 {
   int i0=0;
@@ -114,6 +122,12 @@ static ParamFGRM *param_fgrm_new(void)
   par->nu0_s=23.;
   par->nu0_d=353.;
 
+  par->seed=1234;
+  par->n_samples=10000;
+
+  par->dbg_ipix=0;
+  par->dbg_extra=NULL;
+  
   return par;
 }
 
@@ -166,6 +180,11 @@ static void param_fgrm_print(ParamFGRM *par)
   printf(" D(beta_d) = %.3lf\n",par->sigma_beta_d);
   printf(" - temp_d_0 = %.3lf, ",par->temp_d_0);
   printf(" D(temp_d) = %.3lf\n",par->sigma_temp_d);
+  printf(" - Seed = %lu\n",par->seed);
+  printf(" - Will take %d samples\n",par->n_samples);
+#ifdef _DEBUG
+  printf(" - Will print debug information for pixel %d\n",par->dbg_ipix);
+#endif //_DEBUG
 }
 
 void param_fgrm_free(ParamFGRM *par)
@@ -248,6 +267,14 @@ ParamFGRM *read_params(char *fname)
       par->nside=atoi(s2); 
     else if(!strcmp(s1,"nside_spec="))
       par->nside_spec=atoi(s2);
+    else if(!strcmp(s1,"n_samples="))
+      par->n_samples=atoi(s2);
+    else if(!strcmp(s1,"seed="))
+      par->seed=atoi(s2);
+#ifdef _DEBUG
+    else if(!strcmp(s1,"debug_pixel="))
+      par->dbg_ipix=atoi(s2);
+#endif //_DEBUG
    else
       fprintf(stderr,"FGRM: Unknown parameter %s\n",s1);
   }
@@ -386,4 +413,149 @@ ParamFGRM *read_params(char *fname)
   param_fgrm_print(par);
 
   return par;
+}
+
+void write_output(ParamFGRM *par)
+{
+  int ic1,ic2,ipol,ipix,ncorr,is1,is2,ispec;
+  char fname[256];
+  flouble **map_out;
+
+  //Write output amplitude means
+  sprintf(fname,"%s_components_mean.fits",par->output_prefix);
+  map_out=my_malloc(par->n_pol*par->n_comp*sizeof(flouble *));
+  for(ipol=0;ipol<par->n_pol;ipol++) {
+    for(ic1=0;ic1<par->n_comp;ic1++) {
+      int imap=ic1+par->n_comp*ipol;
+      map_out[imap]=my_malloc(par->n_pix*sizeof(flouble));
+      for(ipix=0;ipix<par->n_pix;ipix++)
+	map_out[imap][ipix]=par->map_components_mean[ic1+par->n_comp*(ipol+par->n_pol*ipix)];
+      he_nest2ring_inplace(map_out[imap],par->nside);
+    }
+  }
+  he_write_healpix_map(map_out,par->n_pol*par->n_comp,par->nside,fname);
+  for(ipol=0;ipol<par->n_pol;ipol++) {
+    for(ic1=0;ic1<par->n_comp;ic1++) {
+      int imap=ic1+par->n_comp*ipol;
+      free(map_out[imap]);
+    }
+  }
+  free(map_out);
+
+  //Write output amplitude covariances
+  sprintf(fname,"%s_components_covar.fits",par->output_prefix);
+  ncorr=par->n_comp*(par->n_comp+1)/2;
+  map_out=my_malloc(par->n_pol*ncorr*sizeof(flouble *));
+  for(ipol=0;ipol<par->n_pol;ipol++) {
+    int icov=0;
+    for(ic1=0;ic1<par->n_comp;ic1++) {
+      for(ic2=ic1;ic2<par->n_comp;ic2++) {
+	int imap=icov+ncorr*ipol;
+	map_out[imap]=my_malloc(par->n_pix*sizeof(flouble));
+	for(ipix=0;ipix<par->n_pix;ipix++)
+	  map_out[imap][ipix]=par->map_components_mean[ic2+par->n_comp*(ic1+par->n_comp*(ipol+par->n_pol*ipix))];
+	he_nest2ring_inplace(map_out[imap],par->nside);
+	icov++;
+      }
+    }
+  }
+  he_write_healpix_map(map_out,par->n_pol*ncorr,par->nside,fname);
+  for(ipol=0;ipol<par->n_pol;ipol++) {
+    int icov=0;
+    for(ic1=0;ic1<par->n_comp;ic1++) {
+      for(ic2=ic1;ic2<par->n_comp;ic2++) {
+	int imap=icov+ncorr*ipol;
+	free(map_out[imap]);
+	icov++;
+      }
+    }
+  }
+  free(map_out);
+
+  //Write output spectral means
+  sprintf(fname,"%s_spec_mean.fits",par->output_prefix);
+  map_out=my_malloc(par->n_spec_vary*sizeof(flouble *));
+  for(is1=0;is1<par->n_spec_vary;is1++) {
+    map_out[is1]=my_malloc(par->n_pix_spec*sizeof(flouble));
+    for(ipix=0;ipix<par->n_pix_spec;ipix++)
+      map_out[is1][ipix]=par->map_indices_mean[is1+par->n_spec_vary*ipix];
+    he_nest2ring_inplace(map_out[is1],par->nside_spec);
+  }
+  he_write_healpix_map(map_out,par->n_spec_vary,par->nside_spec,fname);
+  for(is1=0;is1<par->n_spec_vary;is1++)
+    free(map_out[is1]);
+  free(map_out);
+
+  //Write output spectral covariances
+  sprintf(fname,"%s_spec_covar.fits",par->output_prefix);
+  ncorr=par->n_spec_vary*(par->n_spec_vary+1)/2;
+  map_out=my_malloc(ncorr*sizeof(flouble *));
+  ispec=0;
+  for(is1=0;is1<par->n_spec_vary;is1++) {
+    for(is2=is1;is2<par->n_spec_vary;is2++) {
+      map_out[ispec]=my_malloc(par->n_pix_spec*sizeof(flouble));
+      for(ipix=0;ipix<par->n_pix_spec;ipix++)
+	map_out[ispec][ipix]=par->map_indices_covar[is2+par->n_spec_vary*(is1+par->n_spec_vary*ipix)];
+      he_nest2ring_inplace(map_out[ispec],par->nside_spec);
+      ispec++;
+    }
+  }
+  he_write_healpix_map(map_out,par->n_spec_vary,par->nside_spec,fname);
+  ispec=0;
+  for(is1=0;is1<par->n_spec_vary;is1++) {
+    for(is2=is1;is2<par->n_spec_vary;is2++) {
+      free(map_out[ispec]);
+      ispec++;
+    }
+  }
+  free(map_out);
+}
+
+void write_debug_info(ParamFGRM *par)
+{
+  FILE *fo;
+  int size_float=sizeof(flouble);
+  char fname[256];
+  sprintf(fname,"%s.dbg",par->output_prefix);
+  fo=my_fopen(fname,"wb");
+
+  my_fwrite(&size_float,sizeof(size_float),1,fo);
+  my_fwrite(&(par->dbg_ipix),sizeof(par->dbg_ipix),1,fo);
+  my_fwrite(&(par->nside),sizeof(par->nside),1,fo);
+  my_fwrite(&(par->nside_spec),sizeof(par->nside_spec),1,fo);
+  my_fwrite(&(par->n_sub),sizeof(par->n_sub),1,fo);
+  my_fwrite(&(par->n_nu),sizeof(par->n_nu),1,fo);
+  my_fwrite(&(par->n_pol),sizeof(par->n_pol),1,fo);
+  my_fwrite(&(par->n_comp),sizeof(par->n_comp),1,fo);
+  my_fwrite(&(par->n_spec_vary),sizeof(par->n_spec_vary),1,fo);
+  my_fwrite(&(par->n_samples),sizeof(par->n_samples),1,fo);
+  
+  
+  //Write spectral chains
+  my_fwrite(par->dbg_extra,sizeof(flouble),par->n_samples*par->n_spec_vary,fo);
+  
+  //Write spectral mean
+  my_fwrite(&(par->map_indices_mean[par->dbg_ipix*par->n_spec_vary]),sizeof(flouble),par->n_spec_vary,fo);
+
+  //Write spectral covar
+  my_fwrite(&(par->map_indices_mean[par->dbg_ipix*par->n_spec_vary*par->n_spec_vary]),
+	    sizeof(flouble),par->n_spec_vary*par->n_spec_vary,fo);
+  
+  //Write amplitudes mean
+  my_fwrite(&(par->map_components_mean[par->dbg_ipix*par->n_comp*par->n_pol*par->n_sub]),sizeof(flouble),
+	    par->n_comp*par->n_pol*par->n_sub,fo);
+  
+  //Write amplitudes covar
+  my_fwrite(&(par->map_components_covar[par->dbg_ipix*par->n_comp*par->n_comp*par->n_pol*par->n_sub]),sizeof(flouble),
+	    par->n_comp*par->n_comp*par->n_pol*par->n_sub,fo);
+
+  //Write input data
+  my_fwrite(&(par->maps_data[par->dbg_ipix*par->n_nu*par->n_pol*par->n_sub]),sizeof(flouble),
+	    par->n_nu*par->n_pol*par->n_sub,fo);
+  
+  //Write input noise weights
+  my_fwrite(&(par->maps_noise_weight[par->dbg_ipix*par->n_nu*par->n_pol*par->n_sub]),sizeof(flouble),
+	    par->n_nu*par->n_pol*par->n_sub,fo);
+
+  fclose(fo);
 }

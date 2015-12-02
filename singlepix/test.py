@@ -7,7 +7,7 @@ import common as com
 theta_patch=70.
 phi_patch=50.
 plot_stuff=True
-n_samples=100000
+n_samples=10000
 n_samples_keep=n_samples*3/4
 n_check=1000
 
@@ -26,7 +26,7 @@ temp_d_0=20.92867
 beta_s_0=-1.
 sigma_beta_s=0.01
 sigma_beta_d=0.01
-sigma_temp_d=0.3
+sigma_temp_d=0.1
 
 par=com.ParamClean(nside_spec,nside,fname_nulist,
                    include_polarization,independent_polarization,
@@ -35,7 +35,6 @@ par=com.ParamClean(nside_spec,nside,fname_nulist,
                    beta_s_0,beta_d_0,temp_d_0,
                    sigma_beta_s,sigma_beta_d,sigma_temp_d)
 print par.n_dof
-exit(1)
 
 print "Will vary %d non-linear parameters"%par.n_spec_vary, par.x_spec_0
 
@@ -61,6 +60,7 @@ map_mean=np.zeros([par.n_pix,par.n_pol,par.n_comp])
 map_sigma=np.zeros([par.n_pix,par.n_pol,par.n_comp])
 map_xspec_mean=np.zeros([npix_spec,par.n_spec_vary])
 map_xspec_sigma=np.zeros([npix_spec,par.n_spec_vary])
+
 #for ipix in [ipix0] :
 for ipix in np.arange(npix_spec) :
     if ipix!=ipix0 :
@@ -107,6 +107,7 @@ for ipix in np.arange(npix_spec) :
 
         accept,x_spec_new=com.sample_indices(patch_obs,patch_noise_weights,t_new,x_spec_old,sigma_vary,
                                              toprint,par) #b_{n+1}(A_{n+1})
+
         n_accepted+=accept
         x_spec_old[:]=x_spec_new[:]
 
@@ -115,11 +116,11 @@ for ipix in np.arange(npix_spec) :
             print "   Acceptance rate: %lE"%rate
             print "   Current step size: ", sigma_vary
             n_accepted=0.
-            if i<(n_samples-n_samples_keep) : #Still burning
-                if rate>1.0E-5 :
-                    sigma_vary*=rate/rate_target
-                else :
-                    sigma_vary*=0.5
+#            if i<(n_samples-n_samples_keep) : #Still burning
+#                if rate>1.0E-5 :
+#                    sigma_vary*=rate/rate_target
+#                else :
+#                    sigma_vary*=0.5
 
         x_spec_samples[i,:]=x_spec_old
         if i>=(n_samples-n_samples_keep) :
