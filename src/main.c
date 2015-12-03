@@ -9,6 +9,7 @@ int main(int argc,char **argv)
   }
   sprintf(fname_init,"%s",argv[1]);
 
+  gsl_set_error_handler_off();
   ParamFGRM *par=read_params(fname_init);
 
 #ifndef _DEBUG
@@ -30,7 +31,7 @@ int main(int argc,char **argv)
     for(ipix_big=0;ipix_big<par->n_pix_spec;ipix_big++)
 #endif //_DEBUG
       {
-	par->dbg_extra=clean_pixel(par,pst,ipix_big,par->n_samples);
+	clean_pixel(par,pst,ipix_big);
       }//end omp for
     pixel_state_free(pst,par);
   }//end omp parallel

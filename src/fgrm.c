@@ -8,12 +8,11 @@ PixelState *pixel_state_new(ParamFGRM *par,unsigned long seed)
   pst->rng=init_rng(seed);
   pst->cov_inv=my_malloc(par->n_pix*par->n_pol*sizeof(gsl_matrix *));
   pst->vec_mean=my_malloc(par->n_pix*par->n_pol*sizeof(gsl_vector *));
-
   for(ip=0;ip<par->n_pix*par->n_pol;ip++) {
     pst->cov_inv[ip]=gsl_matrix_alloc(par->n_comp,par->n_comp);
     pst->vec_mean[ip]=gsl_vector_alloc(par->n_comp);
   }
-
+  pst->rand_spec=my_malloc(par->n_spec_vary*sizeof(flouble));
   return pst;
 }
 
@@ -28,6 +27,7 @@ void pixel_state_free(PixelState *pst,ParamFGRM *par)
   }
   free(pst->cov_inv);
   free(pst->vec_mean);
+  free(pst->rand_spec);
   free(pst);
 }
 
@@ -88,6 +88,20 @@ static void compute_f_matrix(ParamFGRM *par,flouble *x_spec,flouble *f_matrix)
 static double compute_chi2(ParamFGRM *par,flouble *data,flouble *noise_w,
 			    flouble *amps,flouble *x_spec,PixelState *pst)
 {
+  /*
+    #define BS_M -1.1
+    #define BD_M 1.55
+    #define BS_S 0.03
+    #define BD_S 0.03
+    #define XICR 0.9
+    flouble bs=x_spec[par->index_beta_s_t];
+    flouble bd=x_spec[par->index_beta_d_t];
+    double den=1./(BS_S*BS_S*BD_S*BD_S*(1-XICR*XICR));
+    double chi2=((bs-BS_M)*(bs-BS_M)*BD_S*BD_S+
+    (bd-BD_M)*(bd-BD_M)*BS_S*BS_S-
+    2*(bs-BS_M)*(bd-BD_M)*XICR*BS_S*BD_S)*den;
+  */
+
   int ipix;
   double chi2=0;
 
@@ -199,13 +213,18 @@ static void draw_amplitudes(ParamFGRM *par,flouble *data,flouble *noise_w,
 
 static int draw_spectral_indices(ParamFGRM *par,flouble *data,flouble *noise_w,
 				 flouble *amps,flouble *x_spec_old,PixelState *pst,
-				 flouble *sigma_step,flouble *x_spec_new)
-{
+				 gsl_matrix *mat_step,flouble *x_spec_new)
+{ //DAM: possible optimization: demote mat_step to flouble *
   int ipar;
   double chi2_old,chi2_new,ratio;
   memcpy(x_spec_new,x_spec_old,par->n_param_max*sizeof(flouble));
   for(ipar=0;ipar<par->n_spec_vary;ipar++)
-    x_spec_new[ipar]+=sigma_step[ipar]*rand_gauss(pst->rng);
+    pst->rand_spec[ipar]=rand_gauss(pst->rng);
+  for(ipar=0;ipar<par->n_spec_vary;ipar++) {
+    int ipar2;
+    for(ipar2=0;ipar2<=ipar;ipar2++)
+      x_spec_new[ipar]+=gsl_matrix_get(mat_step,ipar,ipar2)*pst->rand_spec[ipar2];
+  }
 
   chi2_new=compute_chi2(par,data,noise_w,amps,x_spec_new,pst);
   chi2_old=compute_chi2(par,data,noise_w,amps,x_spec_old,pst);
@@ -226,72 +245,180 @@ static int draw_spectral_indices(ParamFGRM *par,flouble *data,flouble *noise_w,
   return 1;
 }
 
-#define N_CHECK 1000
-#define RATE_TARGET 0.1
-
-flouble *clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big,int n_samples)
+void clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big)
 {
-  int i_sample,ic1,ic2,ipix;
+  int i_sample,ic1,ic2,ipix,n_updated,err;
+  flouble ratio_accepted;
   int ip_spc=par->n_spec_vary*ipix_big;
-  flouble *data=&(par->maps_data[ipix_big*par->n_sub*par->n_pol*par->n_nu]);
-  flouble *noise_w=&(par->maps_noise_weight[ipix_big*par->n_sub*par->n_pol*par->n_nu]);
-  flouble *amps_mean=&(par->map_components_mean[ipix_big*par->n_sub*par->n_pol*par->n_comp]);
-  flouble *amps_covar=&(par->map_components_covar[ipix_big*par->n_sub*par->n_pol*par->n_comp*par->n_comp]);
+  int id_cell=ipix_big*par->n_sub*par->n_pol;
+  flouble *data=&(par->maps_data[id_cell*par->n_nu]);
+  flouble *noise_w=&(par->maps_noise_weight[id_cell*par->n_nu]);
+  flouble *amps_mean=&(par->map_components_mean[id_cell*par->n_comp]);
+  flouble *amps_covar=&(par->map_components_covar[id_cell*par->n_comp*par->n_comp]);
   flouble *amps_dum=my_malloc(par->n_sub*par->n_pol*par->n_comp*sizeof(flouble));
-#ifdef _DEBUG
-  flouble *x_spec_samples=my_malloc(par->n_spec_vary*n_samples*sizeof(flouble));
-#endif //_DEBUG
-  flouble *x_spec_old=my_malloc(par->n_param_max);
-  flouble *x_spec_new=my_malloc(par->n_param_max);
-  flouble *sigma_step=my_malloc(par->n_param_max);
+  flouble *x_spec_old=my_malloc(par->n_param_max*sizeof(flouble));
+  flouble *x_spec_new=my_malloc(par->n_param_max*sizeof(flouble));
+  gsl_matrix *mat_step=gsl_matrix_alloc(par->n_spec_vary,par->n_spec_vary);
+  gsl_matrix *cov_save=gsl_matrix_alloc(par->n_spec_vary,par->n_spec_vary);
+  gsl_matrix *cov_spec=gsl_matrix_alloc(par->n_spec_vary,par->n_spec_vary);
+  flouble *mean_save=my_calloc(par->n_spec_vary,sizeof(flouble));
+  flouble *mean_spec=my_calloc(par->n_spec_vary,sizeof(flouble));
+  flouble factor_rescale=2.4/sqrt((double)(par->n_spec_vary));
 
   memset(amps_mean,0,par->n_sub*par->n_pol*par->n_comp*sizeof(flouble));
   memset(amps_covar,0,par->n_sub*par->n_pol*par->n_comp*par->n_comp*sizeof(flouble));
 
+  gsl_matrix_set_zero(mat_step);
   x_spec_old[par->index_beta_s_t]=par->beta_s_0;
   x_spec_old[par->index_beta_d_t]=par->beta_d_0;
   x_spec_old[par->index_temp_d_t]=par->temp_d_0;
-  sigma_step[par->index_beta_s_t]=par->sigma_beta_s;
-  sigma_step[par->index_beta_d_t]=par->sigma_beta_d;
-  sigma_step[par->index_temp_d_t]=par->sigma_temp_d;
+  if(par->flag_beta_s_free)
+    gsl_matrix_set(mat_step,par->index_beta_s_t,par->index_beta_s_t,par->sigma_beta_s);
+  if(par->flag_beta_d_free)
+    gsl_matrix_set(mat_step,par->index_beta_d_t,par->index_beta_d_t,par->sigma_beta_d);
+  if(par->flag_temp_d_free)
+    gsl_matrix_set(mat_step,par->index_temp_d_t,par->index_temp_d_t,par->sigma_temp_d);
   if(par->flag_include_polarization && par->flag_independent_polarization) {
-    x_spec_old[par->index_beta_s_t]=par->beta_s_0;
-    x_spec_old[par->index_beta_d_t]=par->beta_d_0;
-    x_spec_old[par->index_temp_d_t]=par->temp_d_0;
-    sigma_step[par->index_beta_s_t]=par->sigma_beta_s;
-    sigma_step[par->index_beta_d_t]=par->sigma_beta_d;
-    sigma_step[par->index_temp_d_t]=par->sigma_temp_d;
+    x_spec_old[par->index_beta_s_p]=par->beta_s_0;
+    x_spec_old[par->index_beta_d_p]=par->beta_d_0;
+    x_spec_old[par->index_temp_d_p]=par->temp_d_0;
+    if(par->flag_beta_s_free)
+      gsl_matrix_set(mat_step,par->index_beta_s_p,par->index_beta_s_p,par->sigma_beta_s);
+    if(par->flag_beta_d_free)
+      gsl_matrix_set(mat_step,par->index_beta_d_p,par->index_beta_d_p,par->sigma_beta_d);
+    if(par->flag_temp_d_free)
+      gsl_matrix_set(mat_step,par->index_temp_d_p,par->index_temp_d_p,par->sigma_temp_d);
   }
-    
-  flouble ratio_accepted=0;
-  for(i_sample=0;i_sample<n_samples;i_sample++) {
+
+  dbg_printf("Burning\n");
+  ratio_accepted=0;
+  gsl_matrix_set_zero(cov_spec);
+  gsl_matrix_set_zero(cov_save);
+  n_updated=0;
+  for(i_sample=0;i_sample<par->n_samples_burn;i_sample++) {
     int accepted;
-    draw_amplitudes(par,data,noise_w,x_spec_old,pst,amps_dum); //A_{n+1}(b_n)
-    accepted=draw_spectral_indices(par,data,noise_w,amps_dum,x_spec_old,pst,sigma_step,x_spec_new); //b_{n+1}(A_{n+1})
+
+    if(i_sample%par->n_update_covar==0)
+      draw_amplitudes(par,data,noise_w,x_spec_old,pst,amps_dum); //A_{n+1}(b_n)
+    accepted=draw_spectral_indices(par,data,noise_w,amps_dum,x_spec_old,pst,mat_step,x_spec_new); //b_{n+1}(A_{n+1})
 
     ratio_accepted+=accepted;
-    if(i_sample%N_CHECK==0) {
-      flouble factor_rescale;
-      ratio_accepted/=N_CHECK;
-      printf("%d Acceptance ratio %lE\n",i_sample,ratio_accepted);
-      if(ratio_accepted>RATE_TARGET*0.1)
-	factor_rescale=ratio_accepted/RATE_TARGET;
-      else
-	factor_rescale=0.5;
+    if(i_sample && (i_sample%par->n_update_covar==par->n_update_covar-1)) {
+      n_updated++;
+
+      ratio_accepted/=par->n_update_covar;
+      dbg_printf("%d Acceptance ratio %lE\n",i_sample,ratio_accepted);
+
+      dbg_printf("Current mean :");
+      for(ic1=0;ic1<par->n_spec_vary;ic1++) {//Compute mean
+	mean_spec[ic1]/=par->n_update_covar;
+      	mean_save[ic1]+=mean_spec[ic1];
+      	dbg_printf(" %lf",mean_save[ic1]/n_updated);
+      }
+      dbg_printf("\n");
+      dbg_printf("Current covariance :\n");
+      for(ic1=0;ic1<par->n_spec_vary;ic1++) { //Compute covariance
+      	dbg_printf("   |");
+      	for(ic2=0;ic2<par->n_spec_vary;ic2++) {
+      	  flouble cov=gsl_matrix_get(cov_spec,ic1,ic2)/par->n_update_covar-
+	    mean_spec[ic1]*mean_spec[ic2];
+      	  gsl_matrix_set(cov_save,ic1,ic2,gsl_matrix_get(cov_save,ic1,ic2)+cov);
+      	  gsl_matrix_set(cov_spec,ic1,ic2,cov);
+      	  dbg_printf(" %lE",gsl_matrix_get(cov_save,ic1,ic2)/n_updated);
+      	}
+      	dbg_printf("|\n");
+      }
+
+      for(ic1=0;ic1<par->n_spec_vary;ic1++) //Save standard deviation
+      	mean_spec[ic1]=sqrt(gsl_matrix_get(cov_spec,ic1,ic1));
+      err=gsl_linalg_cholesky_decomp(cov_spec); //Cholesky decomposition of covariance
+      gsl_matrix_set_zero(mat_step);
+      if(err==GSL_EDOM) { //If covariance is not positive definite just save standard deviations
+      	dbg_printf("Covariance is not positive definite\n");
+      	for(ic1=0;ic1<par->n_spec_vary;ic1++)
+      	  gsl_matrix_set(mat_step,ic1,ic1,factor_rescale*mean_spec[ic1]);
+      }
+      else { //Store cholesky decomposition in stepping function
+      	dbg_printf("Covariance is positive definite\n");
+      	for(ic1=0;ic1<par->n_spec_vary;ic1++) {
+      	  for(ic2=0;ic2<=ic1;ic2++)
+      	    gsl_matrix_set(mat_step,ic1,ic2,factor_rescale*gsl_matrix_get(cov_spec,ic1,ic2));
+      	}
+      }
+
+      gsl_matrix_set_zero(cov_spec);
       for(ic1=0;ic1<par->n_spec_vary;ic1++)
-	sigma_step[ic1]*=factor_rescale;
+	mean_spec[ic1]=0;
       ratio_accepted=0;
     }
 
-    //#ifdef _DEBUG
-    //    printf("%d %d\n",i_sample,accepted);
-    //#endif //_DEBUG
     memcpy(x_spec_old,x_spec_new,par->n_param_max*sizeof(flouble));
+
+    for(ic1=0;ic1<par->n_spec_vary;ic1++) {
+      mean_spec[ic1]+=x_spec_old[ic1];
+      for(ic2=0;ic2<par->n_spec_vary;ic2++) {
+	flouble cov_plus=x_spec_old[ic1]*x_spec_old[ic2];
+	gsl_matrix_set(cov_spec,ic1,ic2,gsl_matrix_get(cov_spec,ic1,ic2)+cov_plus);
+      }
+    }
 
     //Add amplitudes
 #ifdef _DEBUG
-    memcpy(&(x_spec_samples[i_sample*par->n_spec_vary]),x_spec_old,par->n_spec_vary*sizeof(flouble));
+    memcpy(&(par->dbg_extra[i_sample*par->n_spec_vary]),x_spec_old,par->n_spec_vary*sizeof(flouble));
 #endif //_DEBUG
+  }
+  dbg_printf("Final mean :");
+  for(ic1=0;ic1<par->n_spec_vary;ic1++) {//Compute mean
+    mean_save[ic1]/=n_updated;
+    dbg_printf(" %lf",mean_save[ic1]);
+  }
+  dbg_printf("\n");
+  dbg_printf("Current covariance :\n");
+  for(ic1=0;ic1<par->n_spec_vary;ic1++) { //Compute covariance
+    dbg_printf("   |");
+    for(ic2=0;ic2<par->n_spec_vary;ic2++) {
+      flouble cov=gsl_matrix_get(cov_save,ic1,ic2)/n_updated;
+      gsl_matrix_set(cov_save,ic1,ic2,cov);
+      dbg_printf(" %lE",cov);
+    }
+    dbg_printf("|\n");
+  }
+  for(ic1=0;ic1<par->n_spec_vary;ic1++) //Save standard deviation
+    mean_save[ic1]=sqrt(gsl_matrix_get(cov_save,ic1,ic1));
+  err=gsl_linalg_cholesky_decomp(cov_save); //Cholesky decomposition of covariance
+  gsl_matrix_set_zero(mat_step);
+  if(err==GSL_EDOM) { //If covariance is not positive definite just save standard deviations
+    dbg_printf("Final covariance is not positive definite\n");
+    for(ic1=0;ic1<par->n_spec_vary;ic1++)
+      gsl_matrix_set(mat_step,ic1,ic1,factor_rescale*mean_save[ic1]);
+  }
+  else { //Store cholesky decomposition in stepping function
+    dbg_printf("Final covariance is positive definite\n");
+    for(ic1=0;ic1<par->n_spec_vary;ic1++) {
+      for(ic2=0;ic2<=ic1;ic2++)
+	gsl_matrix_set(mat_step,ic1,ic2,factor_rescale*gsl_matrix_get(cov_save,ic1,ic2));
+    }
+  }
+
+  dbg_printf("Starting actual sampling\n");
+  ratio_accepted=0;
+  for(i_sample=0;i_sample<par->n_samples;i_sample++) {
+    int accepted;
+    //    if(i_sample%par->n_update_covar==0)
+    //      draw_amplitudes(par,data,noise_w,x_spec_old,pst,amps_dum); //A_{n+1}(b_n)
+    accepted=draw_spectral_indices(par,data,noise_w,amps_dum,x_spec_old,pst,mat_step,x_spec_new); //b_{n+1}(A_{n+1})
+    memcpy(x_spec_old,x_spec_new,par->n_param_max*sizeof(flouble));
+    //Add amplitudes
+#ifdef _DEBUG
+    memcpy(&(par->dbg_extra[(i_sample+par->n_samples_burn)*par->n_spec_vary]),x_spec_old,par->n_spec_vary*sizeof(flouble));
+#endif //_DEBUG
+    ratio_accepted+=accepted;
+    if(i_sample && (i_sample%par->n_update_covar==par->n_update_covar-1)) {
+      ratio_accepted/=par->n_update_covar;
+      dbg_printf("%d Acceptance ratio %lE\n",i_sample,ratio_accepted);
+      ratio_accepted=0;
+    }
+
     for(ipix=0;ipix<par->n_sub*par->n_pol;ipix++) {
       int index_here=ipix*par->n_comp;
       for(ic1=0;ic1<par->n_comp;ic1++) {
@@ -300,7 +427,6 @@ flouble *clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big,int n_samples)
 	  amps_covar[ic2+par->n_comp*(ic1+index_here)]+=amps_dum[ic1+index_here]*amps_dum[ic2+index_here];
       }
     }
-
     //Add indices
     for(ic1=0;ic1<par->n_spec_vary;ic1++) {
       par->map_indices_mean[ic1+ip_spc]+=x_spec_old[ic1];
@@ -326,6 +452,7 @@ flouble *clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big,int n_samples)
   }
   for(ic1=0;ic1<par->n_spec_vary;ic1++)
     par->map_indices_mean[ic1+ip_spc]/=par->n_samples;
+
   for(ic1=0;ic1<par->n_spec_vary;ic1++) {
     for(ic2=0;ic2<par->n_spec_vary;ic2++) {
       par->map_indices_covar[ic1+par->n_spec_vary*(ic2+ip_spc)]/=par->n_samples;
@@ -337,11 +464,9 @@ flouble *clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big,int n_samples)
   free(amps_dum);
   free(x_spec_old);
   free(x_spec_new);
-  free(sigma_step);
-
-#ifdef _DEBUG
-  return x_spec_samples;
-#else //_DEBUG
-  return NULL;
-#endif //_DEBUG
+  free(mean_save);
+  free(mean_spec);
+  gsl_matrix_free(mat_step);
+  gsl_matrix_free(cov_save);
+  gsl_matrix_free(cov_spec);
 }

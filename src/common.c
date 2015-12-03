@@ -18,6 +18,19 @@ int my_linecount(FILE *f)
   return i0;
 }
 
+void dbg_printf(char *fmt,...)
+{
+#ifdef _DEBUG
+  va_list args;
+  char msg[256];
+
+  va_start(args,fmt);
+  vsprintf(msg,fmt,args);
+  va_end(args);
+  printf("%s",msg);
+#endif //_DEBUG
+}
+
 void report_error(int level,char *fmt,...)
 {
   va_list args;
@@ -123,7 +136,10 @@ static ParamFGRM *param_fgrm_new(void)
   par->nu0_d=353.;
 
   par->seed=1234;
-  par->n_samples=10000;
+  par->n_samples=100000;
+  par->frac_samples_burn=0.2;
+  par->n_update_covar=1000;
+  par->n_samples_burn=20000;
 
   par->dbg_ipix=0;
   par->dbg_extra=NULL;
@@ -182,6 +198,8 @@ static void param_fgrm_print(ParamFGRM *par)
   printf(" D(temp_d) = %.3lf\n",par->sigma_temp_d);
   printf(" - Seed = %lu\n",par->seed);
   printf(" - Will take %d samples\n",par->n_samples);
+  printf("   after %d burning steps\n",par->n_samples_burn);
+  printf(" - Proposal covariance will be updated every %d burning steps\n",par->n_update_covar);
 #ifdef _DEBUG
   printf(" - Will print debug information for pixel %d\n",par->dbg_ipix);
 #endif //_DEBUG
@@ -267,10 +285,14 @@ ParamFGRM *read_params(char *fname)
       par->nside=atoi(s2); 
     else if(!strcmp(s1,"nside_spec="))
       par->nside_spec=atoi(s2);
-    else if(!strcmp(s1,"n_samples="))
-      par->n_samples=atoi(s2);
     else if(!strcmp(s1,"seed="))
       par->seed=atoi(s2);
+    else if(!strcmp(s1,"n_samples="))
+      par->n_samples=atoi(s2);
+    else if(!strcmp(s1,"burning_fraction="))
+      par->frac_samples_burn=atof(s2);
+    else if(!strcmp(s1,"n_update_covar="))
+      par->n_update_covar=atoi(s2);
 #ifdef _DEBUG
     else if(!strcmp(s1,"debug_pixel="))
       par->dbg_ipix=atoi(s2);
@@ -284,6 +306,12 @@ ParamFGRM *read_params(char *fname)
   par->n_sub=par->n_side_sub*par->n_side_sub;
   par->n_pix=12*par->nside*par->nside;
   par->n_pix_spec=12*par->nside_spec*par->nside_spec;
+
+  par->n_samples_burn=(int)(par->frac_samples_burn*par->n_samples);
+  if(par->n_samples_burn>0.5*par->n_samples)
+    report_error(1,"Wrong burning fraction %lE\n",par->frac_samples_burn);
+  if(par->n_samples_burn<2*par->n_update_covar)
+    report_error(1,"#burning samples should be larger than the covariance update period\n");
 
   if(par->flag_include_polarization==0)
     par->flag_independent_polarization=0;
@@ -374,6 +402,7 @@ ParamFGRM *read_params(char *fname)
   par->map_indices_mean=my_calloc(par->n_pix_spec*par->n_spec_vary,sizeof(flouble));
   par->map_indices_covar=my_calloc(par->n_pix_spec*par->n_spec_vary*par->n_spec_vary,sizeof(flouble));
   par->map_chi2=my_calloc(par->n_pix,sizeof(flouble));
+  par->dbg_extra=my_malloc(par->n_spec_vary*(par->n_samples+par->n_samples_burn)*sizeof(flouble));
 
   //Read input maps
   printf("Reading data from %sXXX.fits\n",par->input_data_prefix);
@@ -529,10 +558,10 @@ void write_debug_info(ParamFGRM *par)
   my_fwrite(&(par->n_comp),sizeof(par->n_comp),1,fo);
   my_fwrite(&(par->n_spec_vary),sizeof(par->n_spec_vary),1,fo);
   my_fwrite(&(par->n_samples),sizeof(par->n_samples),1,fo);
-  
+  my_fwrite(&(par->n_samples_burn),sizeof(par->n_samples_burn),1,fo);
   
   //Write spectral chains
-  my_fwrite(par->dbg_extra,sizeof(flouble),par->n_samples*par->n_spec_vary,fo);
+  my_fwrite(par->dbg_extra,sizeof(flouble),(par->n_samples+par->n_samples_burn)*par->n_spec_vary,fo);
   
   //Write spectral mean
   my_fwrite(&(par->map_indices_mean[par->dbg_ipix*par->n_spec_vary]),sizeof(flouble),par->n_spec_vary,fo);

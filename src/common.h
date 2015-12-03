@@ -90,6 +90,9 @@ typedef struct {
 
   unsigned long seed;
   int n_samples;
+  flouble frac_samples_burn;
+  int n_update_covar;
+  int n_samples_burn;
 
   int dbg_ipix;
   flouble *dbg_extra;
@@ -106,6 +109,7 @@ void param_fgrm_free(ParamFGRM *par);
 ParamFGRM *read_params(char *fname);
 void write_output(ParamFGRM *par);
 void write_debug_info(ParamFGRM *par);
+void dbg_printf(char *fmt,...);
 
 //Defined in healpix_extra.c
 long he_nalms(int lmax);
@@ -147,14 +151,17 @@ double rand_real01(Rng *rng);
 double rand_gauss(Rng *rng);
 
 //Defined in fgrm.c
+#define N_CHECK 1000
+#define N_BURN_FRAC 0.2
 typedef struct {
   flouble *f_matrix;
   gsl_matrix **cov_inv;
   gsl_vector **vec_mean;
   Rng *rng;
+  flouble *rand_spec;
 } PixelState;
 PixelState *pixel_state_new(ParamFGRM *par,unsigned long seed);
 void pixel_state_free(PixelState *pst,ParamFGRM *par);
-flouble *clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big,int n_samples);
+void clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big);
 
 #endif //_COMMON_FGRM
