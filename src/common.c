@@ -1,5 +1,9 @@
 #include "common.h"
 
+int NNodes=1;
+int NodeThis=0;
+int IThread0=0;
+
 size_t my_fwrite(const void *ptr, size_t size, size_t nmemb,FILE *stream)
 {
   if(fwrite(ptr,size,nmemb,stream)!=nmemb)
@@ -325,7 +329,11 @@ ParamBFoRe *read_params(char *fname)
   par->freqs=my_malloc(par->n_nu*sizeof(flouble));
   for(ii=0;ii<par->n_nu;ii++) {
     flouble dum;
+#ifdef _SPREC
+    int stat=fscanf(fi,"%f %f %f %f %f\n",&dum,&(par->freqs[ii]),&dum,&dum,&dum);
+#else //_SPREC
     int stat=fscanf(fi,"%lf %lf %lf %lf %lf\n",&dum,&(par->freqs[ii]),&dum,&dum,&dum);
+#endif //_SPREC
     if(stat!=5)
       report_error(1,"Error reading file %s, line %d\n",par->fname_nulist,ii+1);
   }
@@ -445,111 +453,32 @@ ParamBFoRe *read_params(char *fname)
   //Print parameters
   param_bfore_print(par);
 
+  int npix_leftover,npix_pernode;
+
+  npix_leftover=par->n_pix_spec%NNodes;
+  npix_pernode=(par->n_pix_spec-npix_leftover)/NNodes;
+  if(NodeThis<npix_leftover) {
+    par->ipix_0=NodeThis*npix_pernode+NodeThis;
+    par->ipix_f=par->ipix_0+npix_pernode+1;
+  }
+  else {
+    par->ipix_0=NodeThis*npix_pernode+npix_leftover;
+    par->ipix_f=par->ipix_0+npix_pernode;
+  }
+#ifdef _DEBUG
+  printf("Node %d will compute pixels %d to %d\n",NodeThis,par->ipix_0,par->ipix_f-1);
+#endif //_DEBUG
+
   return par;
 }
 
-void write_output(ParamBFoRe *par)
-{
-  int ic1,ic2,ipol,ipix,ncorr,is1,is2,ispec;
-  char fname[256];
-  flouble **map_out;
-
-  //Write output amplitude means
-  sprintf(fname,"%s_components_mean.fits",par->output_prefix);
-  map_out=my_malloc(par->n_pol*par->n_comp*sizeof(flouble *));
-  for(ipol=0;ipol<par->n_pol;ipol++) {
-    for(ic1=0;ic1<par->n_comp;ic1++) {
-      int imap=ic1+par->n_comp*ipol;
-      map_out[imap]=my_malloc(par->n_pix*sizeof(flouble));
-      for(ipix=0;ipix<par->n_pix;ipix++)
-	map_out[imap][ipix]=par->map_components_mean[ic1+par->n_comp*(ipol+par->n_pol*ipix)];
-      he_nest2ring_inplace(map_out[imap],par->nside);
-    }
-  }
-  he_write_healpix_map(map_out,par->n_pol*par->n_comp,par->nside,fname);
-  for(ipol=0;ipol<par->n_pol;ipol++) {
-    for(ic1=0;ic1<par->n_comp;ic1++) {
-      int imap=ic1+par->n_comp*ipol;
-      free(map_out[imap]);
-    }
-  }
-  free(map_out);
-
-  //Write output amplitude covariances
-  sprintf(fname,"%s_components_covar.fits",par->output_prefix);
-  ncorr=par->n_comp*(par->n_comp+1)/2;
-  map_out=my_malloc(par->n_pol*ncorr*sizeof(flouble *));
-  for(ipol=0;ipol<par->n_pol;ipol++) {
-    int icov=0;
-    for(ic1=0;ic1<par->n_comp;ic1++) {
-      for(ic2=ic1;ic2<par->n_comp;ic2++) {
-	int imap=icov+ncorr*ipol;
-	map_out[imap]=my_malloc(par->n_pix*sizeof(flouble));
-	for(ipix=0;ipix<par->n_pix;ipix++)
-	  map_out[imap][ipix]=par->map_components_mean[ic2+par->n_comp*(ic1+par->n_comp*(ipol+par->n_pol*ipix))];
-	he_nest2ring_inplace(map_out[imap],par->nside);
-	icov++;
-      }
-    }
-  }
-  he_write_healpix_map(map_out,par->n_pol*ncorr,par->nside,fname);
-  for(ipol=0;ipol<par->n_pol;ipol++) {
-    int icov=0;
-    for(ic1=0;ic1<par->n_comp;ic1++) {
-      for(ic2=ic1;ic2<par->n_comp;ic2++) {
-	int imap=icov+ncorr*ipol;
-	free(map_out[imap]);
-	icov++;
-      }
-    }
-  }
-  free(map_out);
-
-  //Write output spectral means
-  sprintf(fname,"%s_spec_mean.fits",par->output_prefix);
-  map_out=my_malloc(par->n_spec_vary*sizeof(flouble *));
-  for(is1=0;is1<par->n_spec_vary;is1++) {
-    map_out[is1]=my_malloc(par->n_pix_spec*sizeof(flouble));
-    for(ipix=0;ipix<par->n_pix_spec;ipix++)
-      map_out[is1][ipix]=par->map_indices_mean[is1+par->n_spec_vary*ipix];
-    he_nest2ring_inplace(map_out[is1],par->nside_spec);
-  }
-  he_write_healpix_map(map_out,par->n_spec_vary,par->nside_spec,fname);
-  for(is1=0;is1<par->n_spec_vary;is1++)
-    free(map_out[is1]);
-  free(map_out);
-
-  //Write output spectral covariances
-  sprintf(fname,"%s_spec_covar.fits",par->output_prefix);
-  ncorr=par->n_spec_vary*(par->n_spec_vary+1)/2;
-  map_out=my_malloc(ncorr*sizeof(flouble *));
-  ispec=0;
-  for(is1=0;is1<par->n_spec_vary;is1++) {
-    for(is2=is1;is2<par->n_spec_vary;is2++) {
-      map_out[ispec]=my_malloc(par->n_pix_spec*sizeof(flouble));
-      for(ipix=0;ipix<par->n_pix_spec;ipix++)
-	map_out[ispec][ipix]=par->map_indices_covar[is2+par->n_spec_vary*(is1+par->n_spec_vary*ipix)];
-      he_nest2ring_inplace(map_out[ispec],par->nside_spec);
-      ispec++;
-    }
-  }
-  he_write_healpix_map(map_out,par->n_spec_vary,par->nside_spec,fname);
-  ispec=0;
-  for(is1=0;is1<par->n_spec_vary;is1++) {
-    for(is2=is1;is2<par->n_spec_vary;is2++) {
-      free(map_out[ispec]);
-      ispec++;
-    }
-  }
-  free(map_out);
-}
-
-void write_debug_info(ParamBFoRe *par)
+#ifdef _DEBUG
+static void write_debug_info(ParamBFoRe *par)
 {
   FILE *fo;
   int size_float=sizeof(flouble);
   char fname[256];
-  sprintf(fname,"%s.dbg",par->output_prefix);
+  sprintf(fname,"%s_node%d_pix%d.dbg",par->output_prefix,NodeThis,par->dbg_ipix);
   fo=my_fopen(fname,"wb");
 
   my_fwrite(&size_float,sizeof(size_float),1,fo);
@@ -591,4 +520,119 @@ void write_debug_info(ParamBFoRe *par)
 	    par->n_nu*par->n_pol*par->n_sub,fo);
 
   fclose(fo);
+}
+#endif //_DEBUG
+
+void write_output(ParamBFoRe *par)
+{
+#ifdef _DEBUG
+  write_debug_info(par);
+#else //_DEBUG
+  int ic1,ic2,ipol,ipix,ncorr,is1,is2,ispec;
+  char fname[256];
+  flouble **map_out;
+
+#ifdef _WITH_MPI
+  MPI_Reduce(MPI_IN_PLACE,par->map_components_mean,par->n_comp*par->n_pol+par->n_pix,
+	     FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+  MPI_Reduce(MPI_IN_PLACE,par->map_components_covar,par->n_comp*par->n_comp*par->n_pol+par->n_pix,
+	     FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+  MPI_Reduce(MPI_IN_PLACE,par->map_indices_mean,par->n_spec_vary*par->n_pix_spec,
+	     FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+  MPI_Reduce(MPI_IN_PLACE,par->map_indices_covar,par->n_spec_vary*par->n_spec_vary*par->n_pix_spec,
+	     FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+#endif //_WITH_MPI
+
+  if(NodeThis==0) {
+    //Write output amplitude means
+    sprintf(fname,"%s_components_mean.fits",par->output_prefix);
+    map_out=my_malloc(par->n_pol*par->n_comp*sizeof(flouble *));
+    for(ipol=0;ipol<par->n_pol;ipol++) {
+      for(ic1=0;ic1<par->n_comp;ic1++) {
+	int imap=ic1+par->n_comp*ipol;
+	map_out[imap]=my_malloc(par->n_pix*sizeof(flouble));
+	for(ipix=0;ipix<par->n_pix;ipix++)
+	  map_out[imap][ipix]=par->map_components_mean[ic1+par->n_comp*(ipol+par->n_pol*ipix)];
+	he_nest2ring_inplace(map_out[imap],par->nside);
+      }
+    }
+    he_write_healpix_map(map_out,par->n_pol*par->n_comp,par->nside,fname);
+    for(ipol=0;ipol<par->n_pol;ipol++) {
+      for(ic1=0;ic1<par->n_comp;ic1++) {
+	int imap=ic1+par->n_comp*ipol;
+	free(map_out[imap]);
+      }
+    }
+    free(map_out);
+    
+    //Write output amplitude covariances
+    sprintf(fname,"%s_components_covar.fits",par->output_prefix);
+    ncorr=par->n_comp*(par->n_comp+1)/2;
+    map_out=my_malloc(par->n_pol*ncorr*sizeof(flouble *));
+    for(ipol=0;ipol<par->n_pol;ipol++) {
+      int icov=0;
+      for(ic1=0;ic1<par->n_comp;ic1++) {
+	for(ic2=ic1;ic2<par->n_comp;ic2++) {
+	  int imap=icov+ncorr*ipol;
+	  map_out[imap]=my_malloc(par->n_pix*sizeof(flouble));
+	  for(ipix=0;ipix<par->n_pix;ipix++)
+	    map_out[imap][ipix]=par->map_components_mean[ic2+par->n_comp*(ic1+par->n_comp*
+									  (ipol+par->n_pol*ipix))];
+	  he_nest2ring_inplace(map_out[imap],par->nside);
+	  icov++;
+	}
+      }
+    }
+    he_write_healpix_map(map_out,par->n_pol*ncorr,par->nside,fname);
+    for(ipol=0;ipol<par->n_pol;ipol++) {
+      int icov=0;
+      for(ic1=0;ic1<par->n_comp;ic1++) {
+	for(ic2=ic1;ic2<par->n_comp;ic2++) {
+	  int imap=icov+ncorr*ipol;
+	  free(map_out[imap]);
+	  icov++;
+	}
+      }
+    }
+    free(map_out);
+    
+    //Write output spectral means
+    sprintf(fname,"%s_spec_mean.fits",par->output_prefix);
+    map_out=my_malloc(par->n_spec_vary*sizeof(flouble *));
+    for(is1=0;is1<par->n_spec_vary;is1++) {
+      map_out[is1]=my_malloc(par->n_pix_spec*sizeof(flouble));
+      for(ipix=0;ipix<par->n_pix_spec;ipix++)
+	map_out[is1][ipix]=par->map_indices_mean[is1+par->n_spec_vary*ipix];
+      he_nest2ring_inplace(map_out[is1],par->nside_spec);
+    }
+    he_write_healpix_map(map_out,par->n_spec_vary,par->nside_spec,fname);
+    for(is1=0;is1<par->n_spec_vary;is1++)
+      free(map_out[is1]);
+    free(map_out);
+    
+    //Write output spectral covariances
+    sprintf(fname,"%s_spec_covar.fits",par->output_prefix);
+    ncorr=par->n_spec_vary*(par->n_spec_vary+1)/2;
+    map_out=my_malloc(ncorr*sizeof(flouble *));
+    ispec=0;
+    for(is1=0;is1<par->n_spec_vary;is1++) {
+      for(is2=is1;is2<par->n_spec_vary;is2++) {
+	map_out[ispec]=my_malloc(par->n_pix_spec*sizeof(flouble));
+	for(ipix=0;ipix<par->n_pix_spec;ipix++)
+	  map_out[ispec][ipix]=par->map_indices_covar[is2+par->n_spec_vary*(is1+par->n_spec_vary*ipix)];
+	he_nest2ring_inplace(map_out[ispec],par->nside_spec);
+	ispec++;
+      }
+    }
+    he_write_healpix_map(map_out,par->n_spec_vary,par->nside_spec,fname);
+    ispec=0;
+    for(is1=0;is1<par->n_spec_vary;is1++) {
+      for(is2=is1;is2<par->n_spec_vary;is2++) {
+	free(map_out[ispec]);
+	ispec++;
+      }
+    }
+    free(map_out);
+  }
+#endif //_DEBUG
 }

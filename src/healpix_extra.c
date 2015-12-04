@@ -22,6 +22,7 @@
 #include "common.h"
 #include <fitsio.h>
 #include <chealpix.h>
+#ifdef _WITH_SHT
 #include "sharp_almhelpers.h"
 #include "sharp_geomhelpers.h"
 #include "sharp.h"
@@ -252,6 +253,78 @@ void he_anafast(flouble **maps_1,flouble **maps_2,
   }
 }
 
+//Transforms FWHM in arcmin to sigma_G in rad:
+//         pi/(60*180*sqrt(8*log(2))
+#define FWHM2SIGMA 0.00012352884853326381 
+double *he_generate_beam_window(int lmax,double fwhm_amin)
+{
+  long l;
+  double sigma=FWHM2SIGMA*fwhm_amin;
+  double *beam=my_malloc((lmax+1)*sizeof(double));
+
+  for(l=0;l<=lmax;l++)
+    beam[l]=exp(-0.5*l*(l+1)*sigma*sigma);
+  
+  return beam;
+}
+
+void he_alter_alm(int lmax,double fwhm_amin,fcomplex *alms,double *window)
+{
+  double *beam;
+  int mm;
+
+  if(window==NULL) beam=he_generate_beam_window(lmax,fwhm_amin);
+  else beam=window;
+
+  for(mm=0;mm<=lmax;mm++) {
+    int ll;
+    for(ll=mm;ll<=lmax;ll++) {
+      long index=he_indexlm(ll,mm,lmax);
+
+      alms[index]*=beam[ll];
+    }
+  }
+
+  if(window==NULL)
+    free(beam);
+}
+
+/*
+flouble *he_synfast(flouble *cl,int nside,int lmax,unsigned int seed)
+{
+  fcomplex *alms;
+  int lmax_here=lmax;
+  long npix=12*((long)nside)*nside;
+  flouble *map=my_malloc(npix*sizeof(flouble));
+  dam_rng_state *rng=dam_init_rng(seed);
+
+  if(lmax>3*nside-1)
+    lmax_here=3*nside-1;
+  alms=my_malloc(he_nalms(lmax_here)*sizeof(fcomplex));
+
+  int ll;
+  for(ll=0;ll<=lmax_here;ll++) {
+    int mm;
+    double sigma=sqrt(0.5*cl[ll]);
+    double r1,r2;
+    r1=dam_randgauss(rng);
+    alms[he_indexlm(ll,0,lmax_here)]=(fcomplex)(M_SQRT2*sigma*r1);
+
+    for(mm=1;mm<=ll;mm++) {
+      r1=dam_randgauss(rng);
+      r2=dam_randgauss(rng);
+      alms[he_indexlm(ll,mm,lmax_here)]=(fcomplex)(sigma*(r1+I*r2));
+    }
+  }
+  he_alm2map(nside,lmax_here,1,&map,&alms);
+  free(alms);
+  dam_end_rng(rng);
+
+  return map;
+}
+*/
+#endif //_WITH_SHT
+
 void he_write_healpix_map(flouble **tmap,int nfields,long nside,char *fname){
 
   fitsfile *fptr;
@@ -444,12 +517,16 @@ void he_ring2nest_inplace(flouble *map_in,long nside)
   long npix=12*nside*nside;
   flouble *map_out=my_malloc(npix*sizeof(flouble));
 
+#ifdef _WITH_OMP
 #pragma omp parallel default(none)		\
   shared(map_in,nside,npix,map_out)
+#endif //_WITH_OMP
   {
     long ip;
 
+#ifdef _WITH_OMP
 #pragma omp for
+#endif //_WITH_OMP
     for(ip=0;ip<npix;ip++) {
       long inest;
       ring2nest(nside,ip,&inest);
@@ -467,11 +544,16 @@ void he_nest2ring_inplace(flouble *map_in,long nside)
   long npix=12*nside*nside;
   flouble *map_out=my_malloc(npix*sizeof(flouble));
 
+#ifdef _WITH_OMP
 #pragma omp parallel default(none)		\
   shared(map_in,nside,npix,map_out)
+#endif //_WITH_OMP
   {
     long ip;
+
+#ifdef _WITH_OMP
 #pragma omp for
+#endif //_WITH_OMP
     for(ip=0;ip<npix;ip++) {
       long iring;
       nest2ring(nside,ip,&iring);
@@ -547,74 +629,3 @@ void he_udgrade(flouble *map_in,long nside_in,
     }
   }
 }
-
-//Transforms FWHM in arcmin to sigma_G in rad:
-//         pi/(60*180*sqrt(8*log(2))
-#define FWHM2SIGMA 0.00012352884853326381 
-double *he_generate_beam_window(int lmax,double fwhm_amin)
-{
-  long l;
-  double sigma=FWHM2SIGMA*fwhm_amin;
-  double *beam=my_malloc((lmax+1)*sizeof(double));
-
-  for(l=0;l<=lmax;l++)
-    beam[l]=exp(-0.5*l*(l+1)*sigma*sigma);
-  
-  return beam;
-}
-
-void he_alter_alm(int lmax,double fwhm_amin,fcomplex *alms,double *window)
-{
-  double *beam;
-  int mm;
-
-  if(window==NULL) beam=he_generate_beam_window(lmax,fwhm_amin);
-  else beam=window;
-
-  for(mm=0;mm<=lmax;mm++) {
-    int ll;
-    for(ll=mm;ll<=lmax;ll++) {
-      long index=he_indexlm(ll,mm,lmax);
-
-      alms[index]*=beam[ll];
-    }
-  }
-
-  if(window==NULL)
-    free(beam);
-}
-
-/*
-flouble *he_synfast(flouble *cl,int nside,int lmax,unsigned int seed)
-{
-  fcomplex *alms;
-  int lmax_here=lmax;
-  long npix=12*((long)nside)*nside;
-  flouble *map=my_malloc(npix*sizeof(flouble));
-  dam_rng_state *rng=dam_init_rng(seed);
-
-  if(lmax>3*nside-1)
-    lmax_here=3*nside-1;
-  alms=my_malloc(he_nalms(lmax_here)*sizeof(fcomplex));
-
-  int ll;
-  for(ll=0;ll<=lmax_here;ll++) {
-    int mm;
-    double sigma=sqrt(0.5*cl[ll]);
-    double r1,r2;
-    r1=dam_randgauss(rng);
-    alms[he_indexlm(ll,0,lmax_here)]=(fcomplex)(M_SQRT2*sigma*r1);
-
-    for(mm=1;mm<=ll;mm++) {
-      r1=dam_randgauss(rng);
-      r2=dam_randgauss(rng);
-      alms[he_indexlm(ll,mm,lmax_here)]=(fcomplex)(sigma*(r1+I*r2));
-    }
-  }
-  he_alm2map(nside,lmax_here,1,&map,&alms);
-  free(alms);
-  dam_end_rng(rng);
-
-  return map;
-}
-*/

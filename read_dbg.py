@@ -53,4 +53,4 @@ def read_debug(fname) :
             print np.sqrt(np.mean(amp_covar[:,:,ipol,icomp,icomp])*amin2perpix)
             plt.show()
 
-read_debug("test.dbg")
+read_debug("test_node0_pix26.dbg")

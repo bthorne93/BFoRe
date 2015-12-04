@@ -8,7 +8,12 @@
 #include <math.h>
 #include <time.h>
 #include <complex.h>
+#ifdef _WITH_OMP
 #include <omp.h>
+#endif //_WITH_OMP
+#ifdef _WITH_MPI
+#include <mpi.h>
+#endif //_WITH_MPI
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_linalg.h>
@@ -25,10 +30,20 @@ typedef int lint;
 #ifdef _SPREC
 typedef float flouble;
 typedef float complex fcomplex;
+#ifdef _WITH_MPI
+#define FLOUBLE_MPI MPI_FLOAT
+#endif //_WITH_MPI
 #else //_SPREC
 typedef double flouble;
 typedef double complex fcomplex;
+#ifdef _WITH_MPI
+#define FLOUBLE_MPI MPI_DOUBLE
+#endif //_WITH_MPI
 #endif //_SPREC
+
+extern int NNodes;
+extern int NodeThis;
+extern int IThread0;
 
 typedef struct {
   int nside;
@@ -95,6 +110,9 @@ typedef struct {
   int n_samples_burn;
   int n_spec_resample;
 
+  int ipix_0;
+  int ipix_f;
+
   int dbg_ipix;
   flouble *dbg_extra;
 } ParamBFoRe;
@@ -109,10 +127,10 @@ size_t my_fwrite(const void *ptr, size_t size, size_t nmemb,FILE *stream);
 void param_bfore_free(ParamBFoRe *par);
 ParamBFoRe *read_params(char *fname);
 void write_output(ParamBFoRe *par);
-void write_debug_info(ParamBFoRe *par);
 void dbg_printf(char *fmt,...);
 
 //Defined in healpix_extra.c
+#ifdef _WITH_SHT
 long he_nalms(int lmax);
 long he_indexlm(int l,int m,int lmax);
 void he_alm2map(int nside,int lmax,int ntrans,flouble **maps,fcomplex **alms);
@@ -121,6 +139,9 @@ void he_anafast(flouble **maps_1,flouble **maps_2,
 		int nmaps_1,int nmaps_2,
 		int pol_1,int pol_2,
 		flouble **cls,int nside,int lmax);
+double *he_generate_beam_window(int lmax,double fwhm_amin);
+void he_alter_alm(int lmax,double fwhm_amin,fcomplex *alms,double *window);
+#endif //_WITH_SHT
 void he_write_healpix_map(flouble **tmap,int nfields,long nside,char *fname);
 flouble *he_read_healpix_map(char *fname,long *nside,int nfield);
 int he_ring_num(long nside,double z);
@@ -129,8 +150,6 @@ void he_nest2ring_inplace(flouble *map_in,long nside);
 void he_udgrade(flouble *map_in,long nside_in,
 		flouble *map_out,long nside_out,
 		int nest);
-double *he_generate_beam_window(int lmax,double fwhm_amin);
-void he_alter_alm(int lmax,double fwhm_amin,fcomplex *alms,double *window);
 
 //Defined in rng.c
 #define RNG_NRAN 624
