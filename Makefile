@@ -1,6 +1,6 @@
 CC= gcc
 WOPT= -Wall -fopenmp -O3
-WOPT+= -D_DEBUG
+#WOPT+= -D_DEBUG
 LIB_GSL= -L/home/damonge/lib
 INC_GSL= -I/home/damonge/include
 LIB_HP=
@@ -17,14 +17,14 @@ LIBS+= -lgsl -lgslcblas -lchealpix -lsharp -lfftpack -lc_utils -lcfitsio -lm
 COMMONO= src/common.o
 HEO= src/healpix_extra.o
 RNGO= src/rng.o
-FGRMO= src/fgrm.o
+BFOREO= src/bfore.o
 MAINO= src/main.o
-OBJ= $(COMMONO) $(HEO) $(RNGO) $(FGRMO) $(MAINO)
+OBJ= $(COMMONO) $(HEO) $(RNGO) $(BFOREO) $(MAINO)
 
-EXEC= FGRM
+EXEC= BFoRe
 all: $(EXEC)
 
-FGRM : $(OBJ)
+BFoRe : $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) $(LIBS) -o $@
 
 clean :

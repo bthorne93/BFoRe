@@ -10,7 +10,7 @@ int main(int argc,char **argv)
   sprintf(fname_init,"%s",argv[1]);
 
   gsl_set_error_handler_off();
-  ParamFGRM *par=read_params(fname_init);
+  ParamBFoRe *par=read_params(fname_init);
 
 #ifndef _DEBUG
 #pragma omp parallel default(none) shared(par)
@@ -42,7 +42,7 @@ int main(int argc,char **argv)
 #else //_DEBUG
   write_output(par);
 #endif //_DEBUG
-  param_fgrm_free(par);
+  param_bfore_free(par);
 
   return 0;
 }

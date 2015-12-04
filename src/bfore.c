@@ -1,6 +1,6 @@
 #include "common.h"
 
-PixelState *pixel_state_new(ParamFGRM *par,unsigned long seed)
+PixelState *pixel_state_new(ParamBFoRe *par,unsigned long seed)
 {
   int ip;
   PixelState *pst=my_malloc(sizeof(PixelState));
@@ -16,7 +16,7 @@ PixelState *pixel_state_new(ParamFGRM *par,unsigned long seed)
   return pst;
 }
 
-void pixel_state_free(PixelState *pst,ParamFGRM *par)
+void pixel_state_free(PixelState *pst,ParamBFoRe *par)
 {
   int ip;
   free(pst->f_matrix);
@@ -52,7 +52,7 @@ static flouble freq_evolve(int spec_type,double nu_0,double beta,double temp,dou
   return -1;
 }
 
-static void compute_f_matrix(ParamFGRM *par,flouble *x_spec,flouble *f_matrix)
+static void compute_f_matrix(ParamBFoRe *par,flouble *x_spec,flouble *f_matrix)
 {
   int inu;
   for(inu=0;inu<par->n_nu;inu++) {
@@ -85,7 +85,7 @@ static void compute_f_matrix(ParamFGRM *par,flouble *x_spec,flouble *f_matrix)
   }
 }
 
-static double compute_chi2(ParamFGRM *par,flouble *data,flouble *noise_w,
+static double compute_chi2(ParamBFoRe *par,flouble *data,flouble *noise_w,
 			    flouble *amps,flouble *x_spec,PixelState *pst)
 {
   /*
@@ -127,7 +127,7 @@ static double compute_chi2(ParamFGRM *par,flouble *data,flouble *noise_w,
   return chi2;
 }
 
-static void analyze_linear_chi2(ParamFGRM *par,flouble *data,flouble *noise_w,
+static void analyze_linear_chi2(ParamBFoRe *par,flouble *data,flouble *noise_w,
 				flouble *x_spec,PixelState *pst)
 {
   int ipix;
@@ -189,7 +189,7 @@ static void solve_upper_triangular(int n,gsl_matrix *mat,flouble *v)
   }
 }
 
-static void draw_amplitudes(ParamFGRM *par,flouble *data,flouble *noise_w,
+static void draw_amplitudes(ParamBFoRe *par,flouble *data,flouble *noise_w,
 			    flouble *x_spec,PixelState *pst,flouble *amps)
 {
   int ipix;
@@ -211,7 +211,7 @@ static void draw_amplitudes(ParamFGRM *par,flouble *data,flouble *noise_w,
   }
 }
 
-static int draw_spectral_indices(ParamFGRM *par,flouble *data,flouble *noise_w,
+static int draw_spectral_indices(ParamBFoRe *par,flouble *data,flouble *noise_w,
 				 flouble *amps,flouble *x_spec_old,PixelState *pst,
 				 gsl_matrix *mat_step,flouble *x_spec_new)
 { //DAM: possible optimization: demote mat_step to flouble *
@@ -245,9 +245,9 @@ static int draw_spectral_indices(ParamFGRM *par,flouble *data,flouble *noise_w,
   return 1;
 }
 
-void clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big)
+void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
 {
-  int i_sample,ic1,ic2,ipix,n_updated,err;
+  int i_sample,ic1,ic2,ipix,n_updated,err,accepted;
   flouble ratio_accepted;
   int ip_spc=par->n_spec_vary*ipix_big;
   int id_cell=ipix_big*par->n_sub*par->n_pol;
@@ -295,8 +295,6 @@ void clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big)
   gsl_matrix_set_zero(cov_save);
   n_updated=0;
   for(i_sample=0;i_sample<par->n_samples_burn;i_sample++) {
-    int accepted;
-
     if(i_sample%par->n_update_covar==0)
       draw_amplitudes(par,data,noise_w,x_spec_old,pst,amps_dum); //A_{n+1}(b_n)
     accepted=draw_spectral_indices(par,data,noise_w,amps_dum,x_spec_old,pst,mat_step,x_spec_new); //b_{n+1}(A_{n+1})
@@ -398,7 +396,6 @@ void clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big)
   ratio_accepted=0;
 #endif //_DEBUG
   for(i_sample=0;i_sample<par->n_samples;i_sample++) {
-    int accepted;
     if(i_sample%par->n_spec_resample==0)
       draw_amplitudes(par,data,noise_w,x_spec_old,pst,amps_dum); //A_{n+1}(b_n)
     accepted=draw_spectral_indices(par,data,noise_w,amps_dum,x_spec_old,pst,mat_step,x_spec_new); //b_{n+1}(A_{n+1})

@@ -1,5 +1,5 @@
-#ifndef _COMMON_FGRM
-#define _COMMON_FGRM
+#ifndef _COMMON_BFORE
+#define _COMMON_BFORE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,7 +97,7 @@ typedef struct {
 
   int dbg_ipix;
   flouble *dbg_extra;
-} ParamFGRM;
+} ParamBFoRe;
 
 //Defined in common.c
 int my_linecount(FILE *f);
@@ -106,10 +106,10 @@ void *my_malloc(size_t size);
 void *my_calloc(size_t nmemb,size_t size);
 FILE *my_fopen(const char *path,const char *mode);
 size_t my_fwrite(const void *ptr, size_t size, size_t nmemb,FILE *stream);
-void param_fgrm_free(ParamFGRM *par);
-ParamFGRM *read_params(char *fname);
-void write_output(ParamFGRM *par);
-void write_debug_info(ParamFGRM *par);
+void param_bfore_free(ParamBFoRe *par);
+ParamBFoRe *read_params(char *fname);
+void write_output(ParamBFoRe *par);
+void write_debug_info(ParamBFoRe *par);
 void dbg_printf(char *fmt,...);
 
 //Defined in healpix_extra.c
@@ -151,7 +151,7 @@ unsigned long rand_ulong(Rng *rng);
 double rand_real01(Rng *rng);
 double rand_gauss(Rng *rng);
 
-//Defined in fgrm.c
+//Defined in bfore.c
 #define N_CHECK 1000
 #define N_BURN_FRAC 0.2
 typedef struct {
@@ -161,8 +161,8 @@ typedef struct {
   Rng *rng;
   flouble *rand_spec;
 } PixelState;
-PixelState *pixel_state_new(ParamFGRM *par,unsigned long seed);
-void pixel_state_free(PixelState *pst,ParamFGRM *par);
-void clean_pixel(ParamFGRM *par,PixelState *pst,int ipix_big);
+PixelState *pixel_state_new(ParamBFoRe *par,unsigned long seed);
+void pixel_state_free(PixelState *pst,ParamBFoRe *par);
+void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big);
 
-#endif //_COMMON_FGRM
+#endif //_COMMON_BFORE

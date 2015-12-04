@@ -74,9 +74,9 @@ FILE *my_fopen(const char *path,const char *mode)
   return fout;
 }
 
-static ParamFGRM *param_fgrm_new(void)
+static ParamBFoRe *param_bfore_new(void)
 {
-  ParamFGRM *par=(ParamFGRM *)my_malloc(sizeof(ParamFGRM));
+  ParamBFoRe *par=(ParamBFoRe *)my_malloc(sizeof(ParamBFoRe));
 
   par->nside=256;
   par->nside_spec=32;
@@ -148,7 +148,7 @@ static ParamFGRM *param_fgrm_new(void)
   return par;
 }
 
-static void param_fgrm_print(ParamFGRM *par)
+static void param_bfore_print(ParamBFoRe *par)
 {
   printf("Read parameters:\n");
   printf(" - Nside = %d\n",par->nside);
@@ -207,7 +207,7 @@ static void param_fgrm_print(ParamFGRM *par)
 #endif //_DEBUG
 }
 
-void param_fgrm_free(ParamFGRM *par)
+void param_bfore_free(ParamBFoRe *par)
 {
   free(par->maps_data);
   free(par->maps_noise_weight);
@@ -220,13 +220,13 @@ void param_fgrm_free(ParamFGRM *par)
   free(par);
 }
 
-ParamFGRM *read_params(char *fname)
+ParamBFoRe *read_params(char *fname)
 {
   FILE *fi;
   char fname_in[256];
   int n_lin,ii;
   long nside_dum;
-  ParamFGRM *par=param_fgrm_new();
+  ParamBFoRe *par=param_bfore_new();
   flouble *map_dum;
 
   //Read parameters from file
@@ -302,7 +302,7 @@ ParamFGRM *read_params(char *fname)
       par->dbg_ipix=atoi(s2);
 #endif //_DEBUG
    else
-      fprintf(stderr,"FGRM: Unknown parameter %s\n",s1);
+      fprintf(stderr,"BFoRe: Unknown parameter %s\n",s1);
   }
   fclose(fi);
 
@@ -443,12 +443,12 @@ ParamFGRM *read_params(char *fname)
   }
 
   //Print parameters
-  param_fgrm_print(par);
+  param_bfore_print(par);
 
   return par;
 }
 
-void write_output(ParamFGRM *par)
+void write_output(ParamBFoRe *par)
 {
   int ic1,ic2,ipol,ipix,ncorr,is1,is2,ispec;
   char fname[256];
@@ -544,7 +544,7 @@ void write_output(ParamFGRM *par)
   free(map_out);
 }
 
-void write_debug_info(ParamFGRM *par)
+void write_debug_info(ParamBFoRe *par)
 {
   FILE *fo;
   int size_float=sizeof(flouble);
