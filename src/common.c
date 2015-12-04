@@ -140,6 +140,7 @@ static ParamFGRM *param_fgrm_new(void)
   par->frac_samples_burn=0.2;
   par->n_update_covar=1000;
   par->n_samples_burn=20000;
+  par->n_spec_resample=1;
 
   par->dbg_ipix=0;
   par->dbg_extra=NULL;
@@ -159,7 +160,7 @@ static void param_fgrm_print(ParamFGRM *par)
   if(par->flag_include_polarization)
     printf(" - Will include T, Q and U\n");
   else 
-    printf(" - Will only include\n");
+    printf(" - Will only include T\n");
   if(par->flag_independent_polarization)
     printf(" - Independent spectral parameters for polarization\n");
   else
@@ -200,6 +201,7 @@ static void param_fgrm_print(ParamFGRM *par)
   printf(" - Will take %d samples\n",par->n_samples);
   printf("   after %d burning steps\n",par->n_samples_burn);
   printf(" - Proposal covariance will be updated every %d burning steps\n",par->n_update_covar);
+  printf(" - Amplitudes will be resampled every %d steps\n",par->n_spec_resample);
 #ifdef _DEBUG
   printf(" - Will print debug information for pixel %d\n",par->dbg_ipix);
 #endif //_DEBUG
@@ -293,6 +295,8 @@ ParamFGRM *read_params(char *fname)
       par->frac_samples_burn=atof(s2);
     else if(!strcmp(s1,"n_update_covar="))
       par->n_update_covar=atoi(s2);
+    else if(!strcmp(s1,"n_spec_resample="))
+      par->n_spec_resample=atoi(s2);
 #ifdef _DEBUG
     else if(!strcmp(s1,"debug_pixel="))
       par->dbg_ipix=atoi(s2);
@@ -567,9 +571,9 @@ void write_debug_info(ParamFGRM *par)
   my_fwrite(&(par->map_indices_mean[par->dbg_ipix*par->n_spec_vary]),sizeof(flouble),par->n_spec_vary,fo);
 
   //Write spectral covar
-  my_fwrite(&(par->map_indices_mean[par->dbg_ipix*par->n_spec_vary*par->n_spec_vary]),
+  my_fwrite(&(par->map_indices_covar[par->dbg_ipix*par->n_spec_vary*par->n_spec_vary]),
 	    sizeof(flouble),par->n_spec_vary*par->n_spec_vary,fo);
-  
+
   //Write amplitudes mean
   my_fwrite(&(par->map_components_mean[par->dbg_ipix*par->n_comp*par->n_pol*par->n_sub]),sizeof(flouble),
 	    par->n_comp*par->n_pol*par->n_sub,fo);

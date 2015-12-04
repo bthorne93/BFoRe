@@ -93,6 +93,7 @@ typedef struct {
   flouble frac_samples_burn;
   int n_update_covar;
   int n_samples_burn;
+  int n_spec_resample;
 
   int dbg_ipix;
   flouble *dbg_extra;
