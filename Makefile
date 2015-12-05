@@ -1,11 +1,11 @@
-SERIAL_CC= gcc
+SERIAL_CC= icc
 MPI_CC= mpicc
 WOPT_DEFAULT= -Wall -O3
 ADD_OMP= yes
 ADD_MPI= yes
-DEBUG_VERSION= yes
-LIB_GSL= -L/home/damonge/lib
-INC_GSL= -I/home/damonge/include
+DEBUG_VERSION= no
+LIB_GSL= -L/users/damonge/lib
+INC_GSL= -I/users/damonge/include
 LIB_HP=
 INC_HP=
 LIB_FITS=

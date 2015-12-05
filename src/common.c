@@ -84,51 +84,51 @@ static ParamBFoRe *param_bfore_new(void)
 
   par->nside=256;
   par->nside_spec=32;
-  par->n_side_sub=8; //
-  par->n_sub=64; //
-  par->n_pix=786432; //
+  par->n_side_sub=8;
+  par->n_sub=64;
+  par->n_pix=786432;
   
   sprintf(par->input_data_prefix,"default");
-  par->maps_data=NULL; //
+  par->maps_data=NULL;
 
   sprintf(par->input_noise_prefix,"default");
-  par->maps_noise_weight=NULL; //
+  par->maps_noise_weight=NULL;
 
   sprintf(par->output_prefix,"default");
-  par->map_components_mean=NULL; //
-  par->map_components_covar=NULL; //
-  par->map_indices_mean=NULL; //
-  par->map_indices_covar=NULL; //
-  par->map_chi2=NULL; //
+  par->map_components_mean=NULL;
+  par->map_components_covar=NULL;
+  par->map_indices_mean=NULL;
+  par->map_indices_covar=NULL;
+  par->map_chi2=NULL;
 
   sprintf(par->fname_nulist,"default");
-  par->n_nu=-1; //
-  par->freqs=NULL; //
+  par->n_nu=-1;
+  par->freqs=NULL;
   
   par->flag_include_polarization=0;
-  par->n_pol=1; //
+  par->n_pol=1;
 
   par->flag_include_cmb=0;
   par->flag_include_synchrotron=0;
   par->flag_include_dust=0;
-  par->n_comp=0; //
-  par->index_cmb=-1; //
-  par->index_synchrotron=-1; //
-  par->index_dust=-1; //
+  par->n_comp=0;
+  par->index_cmb=-1;
+  par->index_synchrotron=-1;
+  par->index_dust=-1;
 
   par->flag_independent_polarization=0;
   par->flag_beta_s_free=0;
   par->flag_beta_d_free=0;
   par->flag_temp_d_free=0;
-  par->n_param_max=0; //
-  par->n_spec_vary=0; //
-  par->n_dof_pix=0; //
-  par->index_beta_s_t=-1; //
-  par->index_beta_s_p=-1; //
-  par->index_beta_d_t=-1; //
-  par->index_beta_d_p=-1; //
-  par->index_temp_d_t=-1; //
-  par->index_temp_d_p=-1; //
+  par->n_param_max=0;
+  par->n_spec_vary=0;
+  par->n_dof_pix=0;
+  par->index_beta_s_t=-1;
+  par->index_beta_s_p=-1;
+  par->index_beta_d_t=-1;
+  par->index_beta_d_p=-1;
+  par->index_temp_d_t=-1;
+  par->index_temp_d_p=-1;
   
   par->beta_s_0=-1.;
   par->beta_d_0=1.54;
@@ -204,7 +204,8 @@ static void param_bfore_print(ParamBFoRe *par)
   printf(" - Seed = %lu\n",par->seed);
   printf(" - Will take %d samples\n",par->n_samples);
   printf("   after %d burning steps\n",par->n_samples_burn);
-  printf(" - Proposal covariance will be updated every %d burning steps\n",par->n_update_covar);
+  printf(" - Proposal covariance will be updated every %d burning steps\n",
+	 par->n_update_covar);
   printf(" - Amplitudes will be resampled every %d steps\n",par->n_spec_resample);
 #ifdef _DEBUG
   printf(" - Will print debug information for pixel %d\n",par->dbg_ipix);
@@ -234,7 +235,8 @@ ParamBFoRe *read_params(char *fname)
   flouble *map_dum;
 
   //Read parameters from file
-  printf("*** Reading run parameters \n");
+  if(NodeThis==0)
+    printf("*** Reading run parameters \n");
   fi=my_fopen(fname,"r");
   n_lin=my_linecount(fi); rewind(fi);
   for(ii=0;ii<n_lin;ii++) {
@@ -406,18 +408,23 @@ ParamBFoRe *read_params(char *fname)
   par->n_dof_pix=par->n_sub*par->n_pol*(par->n_nu-par->n_comp)-par->n_spec_vary;
 
   //Allocate maps
-  printf("Allocating memory for maps\n");
+  if(NodeThis==0)
+    printf("Allocating memory for maps\n");
   par->maps_data=my_malloc(par->n_pix*par->n_pol*par->n_nu*sizeof(flouble));
   par->maps_noise_weight=my_malloc(par->n_pix*par->n_pol*par->n_nu*sizeof(flouble));
   par->map_components_mean=my_calloc(par->n_pix*par->n_pol*par->n_comp,sizeof(flouble));
-  par->map_components_covar=my_calloc(par->n_pix*par->n_pol*par->n_comp*par->n_comp,sizeof(flouble));
+  par->map_components_covar=my_calloc(par->n_pix*par->n_pol*par->n_comp*par->n_comp,
+				      sizeof(flouble));
   par->map_indices_mean=my_calloc(par->n_pix_spec*par->n_spec_vary,sizeof(flouble));
-  par->map_indices_covar=my_calloc(par->n_pix_spec*par->n_spec_vary*par->n_spec_vary,sizeof(flouble));
+  par->map_indices_covar=my_calloc(par->n_pix_spec*par->n_spec_vary*par->n_spec_vary,
+				   sizeof(flouble));
   par->map_chi2=my_calloc(par->n_pix,sizeof(flouble));
-  par->dbg_extra=my_malloc(par->n_spec_vary*(par->n_samples+par->n_samples_burn)*sizeof(flouble));
+  par->dbg_extra=my_malloc(par->n_spec_vary*(par->n_samples+par->n_samples_burn)*
+			   sizeof(flouble));
 
   //Read input maps
-  printf("Reading data from %sXXX.fits\n",par->input_data_prefix);
+  if(NodeThis==0)
+    printf("Reading data from %sXXX.fits\n",par->input_data_prefix);
   for(ii=0;ii<par->n_nu;ii++) {
     int jj;
     sprintf(fname_in,"%s%03d.fits",par->input_data_prefix,ii+1);
@@ -433,7 +440,8 @@ ParamBFoRe *read_params(char *fname)
     }
   }
 
-  printf("Reading noise from %sXXX.fits\n",par->input_noise_prefix);
+  if(NodeThis==0)
+    printf("Reading noise from %sXXX.fits\n",par->input_noise_prefix);
   flouble amin2_per_pix=4*M_PI*pow(180*60/M_PI,2)/par->n_pix;
   for(ii=0;ii<par->n_nu;ii++) {
     int jj;
@@ -444,14 +452,13 @@ ParamBFoRe *read_params(char *fname)
       if(nside_dum!=par->nside)
 	report_error(1,"Read wrong nside\n");
       he_ring2nest_inplace(map_dum,nside_dum);
-      for(ip=0;ip<par->n_pix;ip++)
-	par->maps_noise_weight[ii+par->n_nu*(jj+par->n_pol*ip)]=amin2_per_pix/(map_dum[ip]*map_dum[ip]);
+      for(ip=0;ip<par->n_pix;ip++) {
+	par->maps_noise_weight[ii+par->n_nu*(jj+par->n_pol*ip)]=
+	  amin2_per_pix/(map_dum[ip]*map_dum[ip]);
+      }
       free(map_dum);
     }
   }
-
-  //Print parameters
-  param_bfore_print(par);
 
   int npix_leftover,npix_pernode;
 
@@ -468,6 +475,10 @@ ParamBFoRe *read_params(char *fname)
 #ifdef _DEBUG
   printf("Node %d will compute pixels %d to %d\n",NodeThis,par->ipix_0,par->ipix_f-1);
 #endif //_DEBUG
+
+  //Print parameters
+  if(NodeThis==0)
+    param_bfore_print(par);
 
   return par;
 }
@@ -494,21 +505,24 @@ static void write_debug_info(ParamBFoRe *par)
   my_fwrite(&(par->n_samples_burn),sizeof(par->n_samples_burn),1,fo);
   
   //Write spectral chains
-  my_fwrite(par->dbg_extra,sizeof(flouble),(par->n_samples+par->n_samples_burn)*par->n_spec_vary,fo);
+  my_fwrite(par->dbg_extra,sizeof(flouble),
+	    (par->n_samples+par->n_samples_burn)*par->n_spec_vary,fo);
   
   //Write spectral mean
-  my_fwrite(&(par->map_indices_mean[par->dbg_ipix*par->n_spec_vary]),sizeof(flouble),par->n_spec_vary,fo);
+  my_fwrite(&(par->map_indices_mean[par->dbg_ipix*par->n_spec_vary]),sizeof(flouble),
+	    par->n_spec_vary,fo);
 
   //Write spectral covar
   my_fwrite(&(par->map_indices_covar[par->dbg_ipix*par->n_spec_vary*par->n_spec_vary]),
 	    sizeof(flouble),par->n_spec_vary*par->n_spec_vary,fo);
 
   //Write amplitudes mean
-  my_fwrite(&(par->map_components_mean[par->dbg_ipix*par->n_comp*par->n_pol*par->n_sub]),sizeof(flouble),
-	    par->n_comp*par->n_pol*par->n_sub,fo);
+  my_fwrite(&(par->map_components_mean[par->dbg_ipix*par->n_comp*par->n_pol*par->n_sub]),
+	    sizeof(flouble),par->n_comp*par->n_pol*par->n_sub,fo);
   
   //Write amplitudes covar
-  my_fwrite(&(par->map_components_covar[par->dbg_ipix*par->n_comp*par->n_comp*par->n_pol*par->n_sub]),sizeof(flouble),
+  my_fwrite(&(par->map_components_covar[par->dbg_ipix*par->n_comp*par->n_comp*
+					par->n_pol*par->n_sub]),sizeof(flouble),
 	    par->n_comp*par->n_comp*par->n_pol*par->n_sub,fo);
 
   //Write input data
@@ -516,8 +530,8 @@ static void write_debug_info(ParamBFoRe *par)
 	    par->n_nu*par->n_pol*par->n_sub,fo);
   
   //Write input noise weights
-  my_fwrite(&(par->maps_noise_weight[par->dbg_ipix*par->n_nu*par->n_pol*par->n_sub]),sizeof(flouble),
-	    par->n_nu*par->n_pol*par->n_sub,fo);
+  my_fwrite(&(par->maps_noise_weight[par->dbg_ipix*par->n_nu*par->n_pol*par->n_sub]),
+	    sizeof(flouble),par->n_nu*par->n_pol*par->n_sub,fo);
 
   fclose(fo);
 }
@@ -533,19 +547,39 @@ void write_output(ParamBFoRe *par)
   flouble **map_out;
 
 #ifdef _WITH_MPI
-  MPI_Reduce(MPI_IN_PLACE,par->map_components_mean,par->n_comp*par->n_pol+par->n_pix,
-	     FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-  MPI_Reduce(MPI_IN_PLACE,par->map_components_covar,par->n_comp*par->n_comp*par->n_pol+par->n_pix,
-	     FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-  MPI_Reduce(MPI_IN_PLACE,par->map_indices_mean,par->n_spec_vary*par->n_pix_spec,
-	     FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-  MPI_Reduce(MPI_IN_PLACE,par->map_indices_covar,par->n_spec_vary*par->n_spec_vary*par->n_pix_spec,
-	     FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+  if(NodeThis==0) {
+    MPI_Reduce(MPI_IN_PLACE,par->map_components_mean,
+	       par->n_comp*par->n_pol+par->n_pix,
+	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE,par->map_components_covar,
+	       par->n_comp*par->n_comp*par->n_pol+par->n_pix,
+	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE,par->map_indices_mean,
+	       par->n_spec_vary*par->n_pix_spec,
+	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+    MPI_Reduce(MPI_IN_PLACE,par->map_indices_covar,
+	       par->n_spec_vary*par->n_spec_vary*par->n_pix_spec,
+	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+  }
+  else {
+    MPI_Reduce(par->map_components_mean,NULL,
+	       par->n_comp*par->n_pol+par->n_pix,
+	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+    MPI_Reduce(par->map_components_covar,NULL,
+	       par->n_comp*par->n_comp*par->n_pol+par->n_pix,
+	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+    MPI_Reduce(par->map_indices_mean,NULL,
+	       par->n_spec_vary*par->n_pix_spec,
+	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+    MPI_Reduce(par->map_indices_covar,NULL,
+	       par->n_spec_vary*par->n_spec_vary*par->n_pix_spec,
+	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+  }
 #endif //_WITH_MPI
 
   if(NodeThis==0) {
     //Write output amplitude means
-    sprintf(fname,"%s_components_mean.fits",par->output_prefix);
+    sprintf(fname,"!%s_components_mean.fits",par->output_prefix);
     map_out=my_malloc(par->n_pol*par->n_comp*sizeof(flouble *));
     for(ipol=0;ipol<par->n_pol;ipol++) {
       for(ic1=0;ic1<par->n_comp;ic1++) {
@@ -566,7 +600,7 @@ void write_output(ParamBFoRe *par)
     free(map_out);
     
     //Write output amplitude covariances
-    sprintf(fname,"%s_components_covar.fits",par->output_prefix);
+    sprintf(fname,"!%s_components_covar.fits",par->output_prefix);
     ncorr=par->n_comp*(par->n_comp+1)/2;
     map_out=my_malloc(par->n_pol*ncorr*sizeof(flouble *));
     for(ipol=0;ipol<par->n_pol;ipol++) {
@@ -575,9 +609,11 @@ void write_output(ParamBFoRe *par)
 	for(ic2=ic1;ic2<par->n_comp;ic2++) {
 	  int imap=icov+ncorr*ipol;
 	  map_out[imap]=my_malloc(par->n_pix*sizeof(flouble));
-	  for(ipix=0;ipix<par->n_pix;ipix++)
-	    map_out[imap][ipix]=par->map_components_mean[ic2+par->n_comp*(ic1+par->n_comp*
-									  (ipol+par->n_pol*ipix))];
+	  for(ipix=0;ipix<par->n_pix;ipix++) {
+	    map_out[imap][ipix]=
+	      par->map_components_mean[ic2+par->n_comp*(ic1+par->n_comp*
+							(ipol+par->n_pol*ipix))];
+	  }
 	  he_nest2ring_inplace(map_out[imap],par->nside);
 	  icov++;
 	}
@@ -597,7 +633,7 @@ void write_output(ParamBFoRe *par)
     free(map_out);
     
     //Write output spectral means
-    sprintf(fname,"%s_spec_mean.fits",par->output_prefix);
+    sprintf(fname,"!%s_spec_mean.fits",par->output_prefix);
     map_out=my_malloc(par->n_spec_vary*sizeof(flouble *));
     for(is1=0;is1<par->n_spec_vary;is1++) {
       map_out[is1]=my_malloc(par->n_pix_spec*sizeof(flouble));
@@ -611,7 +647,7 @@ void write_output(ParamBFoRe *par)
     free(map_out);
     
     //Write output spectral covariances
-    sprintf(fname,"%s_spec_covar.fits",par->output_prefix);
+    sprintf(fname,"!%s_spec_covar.fits",par->output_prefix);
     ncorr=par->n_spec_vary*(par->n_spec_vary+1)/2;
     map_out=my_malloc(ncorr*sizeof(flouble *));
     ispec=0;
@@ -619,7 +655,8 @@ void write_output(ParamBFoRe *par)
       for(is2=is1;is2<par->n_spec_vary;is2++) {
 	map_out[ispec]=my_malloc(par->n_pix_spec*sizeof(flouble));
 	for(ipix=0;ipix<par->n_pix_spec;ipix++)
-	  map_out[ispec][ipix]=par->map_indices_covar[is2+par->n_spec_vary*(is1+par->n_spec_vary*ipix)];
+	  map_out[ispec][ipix]=par->map_indices_covar[is2+par->n_spec_vary*
+						      (is1+par->n_spec_vary*ipix)];
 	he_nest2ring_inplace(map_out[ispec],par->nside_spec);
 	ispec++;
       }

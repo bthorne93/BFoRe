@@ -12,7 +12,7 @@ void mpi_init(int *p_argc,char ***p_argv)
 
   nthreads_all=my_malloc(NNodes*sizeof(int));
 #ifdef _WITH_OMP
-  nthreads_this=omp_get_num_threads();
+  nthreads_this=omp_get_max_threads();
 #else //_WITH_OMP
   nthreads_this=1;
 #endif //_WITH_OMP
@@ -52,7 +52,7 @@ int main(int argc,char **argv)
 
 #ifdef _WITH_OMP
 #ifndef _DEBUG
-#pragma omp parallel default(none) shared(par,IThread0)
+#pragma omp parallel default(none) shared(par,IThread0,NodeThis)
 #endif //_DEBUG
 #endif //_WITH_OMP
   {
@@ -78,12 +78,14 @@ int main(int argc,char **argv)
     for(ipix_big=par->ipix_0;ipix_big<par->ipix_f;ipix_big++)
 #endif //_DEBUG
       {
+	printf("Node %d, thread %d, pixel %d\n",NodeThis,ithr,ipix_big);
 	clean_pixel(par,pst,ipix_big);
       }//end omp for
     pixel_state_free(pst,par);
   }//end omp parallel
 
-  printf("Writing output\n");
+  if(NodeThis==0)
+    printf("Writing output\n");
   write_output(par);
   param_bfore_free(par);
 

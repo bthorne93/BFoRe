@@ -1,24 +1,3 @@
-///////////////////////////////////////////////////////////////////////
-//                                                                   //
-//   Copyright 2012 David Alonso                                     //
-//                                                                   //
-//                                                                   //
-// This file is part of CRIME.                                       //
-//                                                                   //
-// CRIME is free software: you can redistribute it and/or modify it  //
-// under the terms of the GNU General Public License as published by //
-// the Free Software Foundation, either version 3 of the License, or //
-// (at your option) any later version.                               //
-//                                                                   //
-// CRIME is distributed in the hope that it will be useful, but      //
-// WITHOUT ANY WARRANTY; without even the implied warranty of        //
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU //
-// General Public License for more details.                          //
-//                                                                   //
-// You should have received a copy of the GNU General Public License //
-// along with CRIME.  If not, see <http://www.gnu.org/licenses/>.    //
-//                                                                   //
-///////////////////////////////////////////////////////////////////////
 #include "common.h"
 #include <fitsio.h>
 #include <chealpix.h>
@@ -325,18 +304,23 @@ flouble *he_synfast(flouble *cl,int nside,int lmax,unsigned int seed)
 */
 #endif //_WITH_SHT
 
-void he_write_healpix_map(flouble **tmap,int nfields,long nside,char *fname){
-
+void he_write_healpix_map(flouble **tmap,int nfields,long nside,char *fname)
+{
   fitsfile *fptr;
   int ii,status=0;
-  char *ttype[]={"T","Q","U"};
-  char *tform[]={"1E","1E","1E"};
-  char *tunit[]={"mK","mK","mK"};
+  char **ttype,**tform,**tunit;
   float *map_dum=my_malloc(nside2npix(nside)*sizeof(float));
 
-  if((nfields!=1)&&(nfields!=3)) {
-    fprintf(stderr,"CRIME: nfields must be 1 or 3\n");
-    exit(1);
+  ttype=my_malloc(nfields*sizeof(char *));
+  tform=my_malloc(nfields*sizeof(char *));
+  tunit=my_malloc(nfields*sizeof(char *));
+  for(ii=0;ii<nfields;ii++) {
+    ttype[ii]=my_malloc(256);
+    tform[ii]=my_malloc(256);
+    tunit[ii]=my_malloc(256);
+    sprintf(ttype[ii],"map %d",ii+1);
+    sprintf(tform[ii],"1E");
+    sprintf(tunit[ii],"mK");
   }
 
   fits_create_file(&fptr,fname,&status);
@@ -361,6 +345,15 @@ void he_write_healpix_map(flouble **tmap,int nfields,long nside,char *fname){
     fits_write_col(fptr,TFLOAT,ii+1,1,1,nside2npix(nside),map_dum,&status);
   }
   fits_close_file(fptr, &status);
+
+  for(ii=0;ii<nfields;ii++) {
+    free(ttype[ii]);
+    free(tform[ii]);
+    free(tunit[ii]);
+  }
+  free(ttype);
+  free(tform);
+  free(tunit);
 }
 
 flouble *he_read_healpix_map(char *fname,long *nside,int nfield)
