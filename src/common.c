@@ -133,9 +133,12 @@ static ParamBFoRe *param_bfore_new(void)
   par->beta_s_0=-1.;
   par->beta_d_0=1.54;
   par->temp_d_0=20.;
-  par->sigma_beta_s=0.1;
-  par->sigma_beta_d=0.1;
-  par->sigma_temp_d=0.1;
+  par->beta_s_step=0.1;
+  par->beta_d_step=0.1;
+  par->temp_d_step=0.1;
+  par->beta_s_prior=-1;
+  par->beta_d_prior=-1;
+  par->temp_d_prior=-1;
   par->nu0_s=23.;
   par->nu0_d=353.;
 
@@ -196,11 +199,17 @@ static void param_bfore_print(ParamBFoRe *par)
   printf(". %d out of %d\n",par->n_spec_vary,par->n_param_max);
   printf(" - %d DOF per pixel\n",par->n_dof_pix);
   printf(" - beta_s_0 = %.3lf, ",par->beta_s_0);
-  printf(" D(beta_s) = %.3lf\n",par->sigma_beta_s);
+  if(par->beta_s_prior>0)
+    printf(" S(beta_s) = %.3lf",par->beta_s_prior);
+  printf(" D(beta_s) = %.3lf\n",par->beta_s_step);
   printf(" - beta_d_0 = %.3lf, ",par->beta_d_0);
-  printf(" D(beta_d) = %.3lf\n",par->sigma_beta_d);
+  if(par->beta_d_prior>0)
+    printf(" S(beta_d) = %.3lf",par->beta_d_prior);
+  printf(" D(beta_d) = %.3lf\n",par->beta_d_step);
   printf(" - temp_d_0 = %.3lf, ",par->temp_d_0);
-  printf(" D(temp_d) = %.3lf\n",par->sigma_temp_d);
+  if(par->temp_d_prior>0)
+    printf(" S(temp_d) = %.3lf",par->temp_d_prior);
+  printf(" D(temp_d) = %.3lf\n",par->temp_d_step);
   printf(" - Seed = %lu\n",par->seed);
   printf(" - Will take %d samples\n",par->n_samples);
   printf("   after %d burning steps\n",par->n_samples_burn);
@@ -222,6 +231,8 @@ void param_bfore_free(ParamBFoRe *par)
   free(par->map_indices_covar);
   free(par->map_chi2);
   free(par->freqs);
+  free(par->prior_mean);
+  free(par->prior_isigma);
   free(par);
 }
 
@@ -283,12 +294,18 @@ ParamBFoRe *read_params(char *fname)
       par->beta_d_0=atof(s2);
     else if(!strcmp(s1,"temp_d_0="))
       par->temp_d_0=atof(s2);
-    else if(!strcmp(s1,"sigma_beta_s="))
-      par->sigma_beta_s=atof(s2);
-    else if(!strcmp(s1,"sigma_beta_d="))
-      par->sigma_beta_d=atof(s2);
-    else if(!strcmp(s1,"sigma_temp_d="))
-      par->sigma_temp_d=atof(s2);
+    else if(!strcmp(s1,"beta_s_step="))
+      par->beta_s_step=atof(s2);
+    else if(!strcmp(s1,"beta_d_step="))
+      par->beta_d_step=atof(s2);
+    else if(!strcmp(s1,"temp_d_step="))
+      par->temp_d_step=atof(s2);
+    else if(!strcmp(s1,"beta_s_prior="))
+      par->beta_s_prior=atof(s2);
+    else if(!strcmp(s1,"beta_d_prior="))
+      par->beta_d_prior=atof(s2);
+    else if(!strcmp(s1,"temp_d_prior="))
+      par->temp_d_prior=atof(s2);
     else if(!strcmp(s1,"nside="))
       par->nside=atoi(s2); 
     else if(!strcmp(s1,"nside_spec="))
@@ -406,6 +423,40 @@ ParamBFoRe *read_params(char *fname)
     par->index_temp_d_p=par->index_temp_d_t;
   }
   par->n_dof_pix=par->n_sub*par->n_pol*(par->n_nu-par->n_comp)-par->n_spec_vary;
+
+  //Set prior
+  par->prior_mean=my_malloc(par->n_param_max*sizeof(flouble));
+  par->prior_isigma=my_malloc(par->n_param_max*sizeof(flouble));
+  par->prior_mean[par->index_beta_s_t]=par->beta_s_0;
+  par->prior_mean[par->index_beta_s_p]=par->beta_s_0;
+  if(par->beta_s_prior<=0) {
+    par->prior_isigma[par->index_beta_s_t]=-1;
+    par->prior_isigma[par->index_beta_s_p]=-1;
+  }
+  else {
+    par->prior_isigma[par->index_beta_s_t]=1./par->beta_s_prior;
+    par->prior_isigma[par->index_beta_s_p]=1./par->beta_s_prior;
+  }
+  par->prior_mean[par->index_beta_d_t]=par->beta_d_0;
+  par->prior_mean[par->index_beta_d_p]=par->beta_d_0;
+  if(par->beta_d_prior<=0) {
+    par->prior_isigma[par->index_beta_d_t]=-1;
+    par->prior_isigma[par->index_beta_d_p]=-1;
+  }
+  else {
+    par->prior_isigma[par->index_beta_d_t]=1./par->beta_d_prior;
+    par->prior_isigma[par->index_beta_d_p]=1./par->beta_d_prior;
+  }
+  par->prior_mean[par->index_temp_d_t]=par->temp_d_0;
+  par->prior_mean[par->index_temp_d_p]=par->temp_d_0;
+  if(par->temp_d_prior<=0) {
+    par->prior_isigma[par->index_temp_d_t]=-1;
+    par->prior_isigma[par->index_temp_d_p]=-1;
+  }
+  else {
+    par->prior_isigma[par->index_temp_d_t]=1./par->temp_d_prior;
+    par->prior_isigma[par->index_temp_d_p]=1./par->temp_d_prior;
+  }
 
   //Allocate maps
   if(NodeThis==0)

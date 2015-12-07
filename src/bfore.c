@@ -211,6 +211,21 @@ static void draw_amplitudes(ParamBFoRe *par,flouble *data,flouble *noise_w,
   }
 }
 
+static flouble chi2_prior(ParamBFoRe *par,flouble *x_spec)
+{
+  int ipar;
+  flouble x,chi2=0;
+
+  for(ipar=0;ipar<par->n_spec_vary;ipar++) {
+    if(par->prior_isigma[ipar]>0) {
+      x=(x_spec[ipar]-par->prior_mean[ipar])*par->prior_isigma[ipar];
+      chi2+=x*x;
+    }
+  }
+
+  return chi2;
+}
+
 static int draw_spectral_indices(ParamBFoRe *par,flouble *data,flouble *noise_w,
 				 flouble *amps,flouble *x_spec_old,PixelState *pst,
 				 gsl_matrix *mat_step,flouble *x_spec_new)
@@ -226,8 +241,8 @@ static int draw_spectral_indices(ParamBFoRe *par,flouble *data,flouble *noise_w,
       x_spec_new[ipar]+=gsl_matrix_get(mat_step,ipar,ipar2)*pst->rand_spec[ipar2];
   }
 
-  chi2_new=compute_chi2(par,data,noise_w,amps,x_spec_new,pst);
-  chi2_old=compute_chi2(par,data,noise_w,amps,x_spec_old,pst);
+  chi2_new=compute_chi2(par,data,noise_w,amps,x_spec_new,pst)+chi2_prior(par,x_spec_new);
+  chi2_old=compute_chi2(par,data,noise_w,amps,x_spec_old,pst)+chi2_prior(par,x_spec_old);
       
   ratio=exp(-0.5*(chi2_new-chi2_old));
   
@@ -272,21 +287,21 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
   x_spec_old[par->index_beta_d_t]=par->beta_d_0;
   x_spec_old[par->index_temp_d_t]=par->temp_d_0;
   if(par->flag_beta_s_free)
-    gsl_matrix_set(mat_step,par->index_beta_s_t,par->index_beta_s_t,par->sigma_beta_s);
+    gsl_matrix_set(mat_step,par->index_beta_s_t,par->index_beta_s_t,par->beta_s_step);
   if(par->flag_beta_d_free)
-    gsl_matrix_set(mat_step,par->index_beta_d_t,par->index_beta_d_t,par->sigma_beta_d);
+    gsl_matrix_set(mat_step,par->index_beta_d_t,par->index_beta_d_t,par->beta_d_step);
   if(par->flag_temp_d_free)
-    gsl_matrix_set(mat_step,par->index_temp_d_t,par->index_temp_d_t,par->sigma_temp_d);
+    gsl_matrix_set(mat_step,par->index_temp_d_t,par->index_temp_d_t,par->temp_d_step);
   if(par->flag_include_polarization && par->flag_independent_polarization) {
     x_spec_old[par->index_beta_s_p]=par->beta_s_0;
     x_spec_old[par->index_beta_d_p]=par->beta_d_0;
     x_spec_old[par->index_temp_d_p]=par->temp_d_0;
     if(par->flag_beta_s_free)
-      gsl_matrix_set(mat_step,par->index_beta_s_p,par->index_beta_s_p,par->sigma_beta_s);
+      gsl_matrix_set(mat_step,par->index_beta_s_p,par->index_beta_s_p,par->beta_s_step);
     if(par->flag_beta_d_free)
-      gsl_matrix_set(mat_step,par->index_beta_d_p,par->index_beta_d_p,par->sigma_beta_d);
+      gsl_matrix_set(mat_step,par->index_beta_d_p,par->index_beta_d_p,par->beta_d_step);
     if(par->flag_temp_d_free)
-      gsl_matrix_set(mat_step,par->index_temp_d_p,par->index_temp_d_p,par->sigma_temp_d);
+      gsl_matrix_set(mat_step,par->index_temp_d_p,par->index_temp_d_p,par->temp_d_step);
   }
 
   dbg_printf("Burning\n");

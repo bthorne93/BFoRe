@@ -97,11 +97,16 @@ typedef struct {
   flouble beta_s_0;
   flouble beta_d_0;
   flouble temp_d_0;
-  flouble sigma_beta_s;
-  flouble sigma_beta_d;
-  flouble sigma_temp_d;
+  flouble beta_s_step;
+  flouble beta_d_step;
+  flouble temp_d_step;
+  flouble beta_s_prior;
+  flouble beta_d_prior;
+  flouble temp_d_prior;
   flouble nu0_s;
   flouble nu0_d;
+  flouble *prior_mean;
+  flouble *prior_isigma;
 
   unsigned long seed;
   int n_samples;

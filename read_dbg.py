@@ -1,6 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import healpy as hp
+import sys as sys
+
+fname_read=sys.argv[1]
 
 def read_debug(fname) :
     f=open(fname,"rb")
@@ -30,7 +33,8 @@ def read_debug(fname) :
         plt.hist(chain[nb_samples:,i],bins=100); plt.show()
         plt.plot(chain[nb_samples:,i]); plt.show()
         for j in np.arange(n_spec_vary-i-1)+i+1 :
-            plt.plot(chain[nb_samples:,i],chain[nb_samples:,j],'.',markersize=0.1); plt.show()
+            plt.plot(chain[:nb_samples,i],chain[:nb_samples,j],'r-',markersize=0.1);
+            plt.plot(chain[nb_samples:,i],chain[nb_samples:,j],'b.',markersize=0.1); plt.show()
 
     f.close()
 
@@ -53,4 +57,4 @@ def read_debug(fname) :
             print np.sqrt(np.mean(amp_covar[:,:,ipol,icomp,icomp])*amin2perpix)
             plt.show()
 
-read_debug("test_node0_pix26.dbg")
+read_debug(fname_read)
