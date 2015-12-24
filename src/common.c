@@ -600,10 +600,10 @@ void write_output(ParamBFoRe *par)
 #ifdef _WITH_MPI
   if(NodeThis==0) {
     MPI_Reduce(MPI_IN_PLACE,par->map_components_mean,
-	       par->n_comp*par->n_pol+par->n_pix,
+	       par->n_comp*par->n_pol*par->n_pix,
 	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
     MPI_Reduce(MPI_IN_PLACE,par->map_components_covar,
-	       par->n_comp*par->n_comp*par->n_pol+par->n_pix,
+	       par->n_comp*par->n_comp*par->n_pol*par->n_pix,
 	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
     MPI_Reduce(MPI_IN_PLACE,par->map_indices_mean,
 	       par->n_spec_vary*par->n_pix_spec,
@@ -614,10 +614,10 @@ void write_output(ParamBFoRe *par)
   }
   else {
     MPI_Reduce(par->map_components_mean,NULL,
-	       par->n_comp*par->n_pol+par->n_pix,
+	       par->n_comp*par->n_pol*par->n_pix,
 	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
     MPI_Reduce(par->map_components_covar,NULL,
-	       par->n_comp*par->n_comp*par->n_pol+par->n_pix,
+	       par->n_comp*par->n_comp*par->n_pol*par->n_pix,
 	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
     MPI_Reduce(par->map_indices_mean,NULL,
 	       par->n_spec_vary*par->n_pix_spec,
