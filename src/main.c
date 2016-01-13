@@ -51,9 +51,7 @@ int main(int argc,char **argv)
   ParamBFoRe *par=read_params(fname_init);
 
 #ifdef _WITH_OMP
-#ifndef _DEBUG
 #pragma omp parallel default(none) shared(par,IThread0,NodeThis)
-#endif //_DEBUG
 #endif //_WITH_OMP
   {
     int ipix_big,ithr;
@@ -62,25 +60,18 @@ int main(int argc,char **argv)
 
     ithr=0;
 #ifdef _WITH_OMP
-#ifndef _DEBUG
     ithr=omp_get_thread_num();
-#endif //_DEBUG
 #endif //_WITH_OMP
     seed_thr=par->seed+IThread0+ithr;
     pst=pixel_state_new(par,seed_thr);
 
-#ifdef _DEBUG
-    ipix_big=par->dbg_ipix;
-#else //_DEBUG
 #ifdef _WITH_OMP
 #pragma omp for
 #endif //_WITH_OMP
-    for(ipix_big=par->ipix_0;ipix_big<par->ipix_f;ipix_big++)
-#endif //_DEBUG
-      {
-	printf("Node %d, thread %d, pixel %d\n",NodeThis,ithr,ipix_big);
-	clean_pixel(par,pst,ipix_big);
-      }//end omp for
+    for(ipix_big=par->ipix_0;ipix_big<par->ipix_f;ipix_big++) {
+      printf("Node %d, thread %d, pixel %d\n",NodeThis,ithr,ipix_big);
+      clean_pixel(par,pst,ipix_big);
+    }//end omp for
     pixel_state_free(pst,par);
   }//end omp parallel
 

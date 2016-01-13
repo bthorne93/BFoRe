@@ -285,10 +285,42 @@ static void restart_mcmc(ParamBFoRe *par,flouble *x_spec,gsl_matrix *mat_step,fl
   }
 }
 
+static void close_region_file(FILE *fo,int ipix)
+{
+  my_fwrite(&ipix,sizeof(ipix),1,fo);
+  fclose(fo);
+}
+
+static FILE *open_region_file(ParamBFoRe *par,int ipix)
+{
+  FILE *fo;
+  int size_float=sizeof(flouble);
+  char fname[256];
+  sprintf(fname,"%s_pix%d.dat",par->output_prefix,ipix);
+  fo=my_fopen(fname,"wb");
+
+  my_fwrite(&ipix,sizeof(ipix),1,fo);
+  my_fwrite(&NodeThis,sizeof(NodeThis),1,fo);
+  my_fwrite(&size_float,sizeof(size_float),1,fo);
+  my_fwrite(&(par->nside),sizeof(par->nside),1,fo);
+  my_fwrite(&(par->nside_spec),sizeof(par->nside_spec),1,fo);
+  my_fwrite(&(par->n_sub),sizeof(par->n_sub),1,fo);
+  my_fwrite(&(par->n_nu),sizeof(par->n_nu),1,fo);
+  my_fwrite(&(par->n_pol),sizeof(par->n_pol),1,fo);
+  my_fwrite(&(par->n_comp),sizeof(par->n_comp),1,fo);
+  my_fwrite(&(par->n_spec_vary),sizeof(par->n_spec_vary),1,fo);
+  my_fwrite(&(par->n_samples),sizeof(par->n_samples),1,fo);
+  my_fwrite(&(par->n_samples_burn),sizeof(par->n_samples_burn),1,fo);
+  my_fwrite(&(par->n_output_rate),sizeof(par->n_output_rate),1,fo);
+
+  return fo;
+}
+
 void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
 {
   int i_sample,ic1,ic2,ipix,n_updated,err,accepted;
   flouble ratio_accepted;
+  FILE *fo;
   int ip_spc=par->n_spec_vary*ipix_big;
   int id_cell=ipix_big*par->n_sub*par->n_pol;
   flouble *data=&(par->maps_data[id_cell*par->n_nu]);
@@ -304,12 +336,18 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
   flouble *mean_spec=my_calloc(par->n_spec_vary,sizeof(flouble));
   flouble factor_rescale=2.4/sqrt((double)(par->n_spec_vary));
   flouble stepping_factor=1.;
+  int do_print=(ipix_big==par->dbg_ipix);
+
+  if(par->flag_write_samples)
+    fo=open_region_file(par,ipix_big);
+  else
+    fo=NULL;
 
   memset(amps_mean,0,par->n_sub*par->n_pol*par->n_comp*sizeof(flouble));
   memset(amps_covar,0,par->n_sub*par->n_pol*par->n_comp*par->n_comp*sizeof(flouble));
   restart_mcmc(par,x_spec_old,mat_step,stepping_factor);
 
-  dbg_printf("Burning\n");
+  dbg_printf(do_print,"Burning\n");
   ratio_accepted=0;
   gsl_matrix_set_zero(cov_spec);
   gsl_matrix_set_zero(cov_save);
@@ -320,7 +358,8 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
     accepted=draw_spectral_indices(par,data,noise_w,amps_dum,x_spec_old,pst,mat_step,x_spec_new); //b_{n+1}(A_{n+1})
     memcpy(x_spec_old,x_spec_new,par->n_param_max*sizeof(flouble));
 #ifdef _DEBUG
-    memcpy(&(par->dbg_extra[i_sample*par->n_spec_vary]),x_spec_old,par->n_spec_vary*sizeof(flouble));
+    if(ipix_big==par->dbg_ipix)
+      memcpy(&(par->dbg_extra[i_sample*par->n_spec_vary]),x_spec_old,par->n_spec_vary*sizeof(flouble));
 #endif //_DEBUG
     for(ic1=0;ic1<par->n_spec_vary;ic1++) {
       mean_spec[ic1]+=x_spec_old[ic1];
@@ -332,43 +371,44 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
 
     ratio_accepted+=accepted;
     if(i_sample%par->n_update_covar==par->n_update_covar-1) { //Update covariance
-      ratio_accepted/=par->n_update_covar;
-      dbg_printf("%d Acceptance ratio %.2lf\n",i_sample,ratio_accepted);
-
-      if(ratio_accepted<=0) { //Check if no samples were accepted
-	dbg_printf("No samples were accepted! Restarting with smaller step size\n");
+      if(ratio_accepted<=5) { //Check if too few samples were accepted
+	dbg_printf(do_print,"No samples were accepted! Restarting with smaller step size\n");
 	stepping_factor*=0.5;
 	restart_mcmc(par,x_spec_old,mat_step,stepping_factor);
 	gsl_matrix_set_zero(cov_save);
 	n_updated=0;
-	i_sample=0;
+	i_sample=-1;
       }
       else {
 	//Compute mean in this batch
-	dbg_printf("Current mean :");
+	ratio_accepted/=par->n_update_covar;
+	dbg_printf(do_print,"%d Acceptance ratio %.2lf\n",i_sample,ratio_accepted);
+
+	dbg_printf(do_print,"Current mean :");
 	for(ic1=0;ic1<par->n_spec_vary;ic1++) {
 	  mean_spec[ic1]/=par->n_update_covar;
-	  dbg_printf(" %lf",mean_spec[ic1]);
+	  dbg_printf(do_print," %lf",mean_spec[ic1]);
 	}
-	dbg_printf("\n");
+	dbg_printf(do_print,"\n");
 	//Compute covariance in this batch
-	dbg_printf("Current covariance :\n");
+	dbg_printf(do_print,"Current covariance :\n");
 	for(ic1=0;ic1<par->n_spec_vary;ic1++) {
-	  dbg_printf("   |");
+	  dbg_printf(do_print,"   |");
 	  for(ic2=0;ic2<par->n_spec_vary;ic2++) {
 	    flouble cov=gsl_matrix_get(cov_spec,ic1,ic2)/par->n_update_covar-
 	      mean_spec[ic1]*mean_spec[ic2];
 	    gsl_matrix_set(cov_spec,ic1,ic2,cov);
-	    dbg_printf(" %lE",gsl_matrix_get(cov_spec,ic1,ic2));
+	    dbg_printf(do_print," %lE",gsl_matrix_get(cov_spec,ic1,ic2));
 	  }
-	  dbg_printf("|\n");
+	  dbg_printf(do_print,"|\n");
 	}
 	//Add to mean covariance
 	if(i_sample>par->n_samples_burn/2) {
 	  n_updated++;
 	  for(ic1=0;ic1<par->n_spec_vary;ic1++) {
 	    for(ic2=0;ic2<par->n_spec_vary;ic2++)
-	      gsl_matrix_set(cov_save,ic1,ic2,gsl_matrix_get(cov_save,ic1,ic2)+gsl_matrix_get(cov_spec,ic1,ic2));
+	      gsl_matrix_set(cov_save,ic1,ic2,gsl_matrix_get(cov_save,ic1,ic2)+
+			     gsl_matrix_get(cov_spec,ic1,ic2));
 	  }
 	}
 	//Save diagonal
@@ -378,7 +418,7 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
 	err=gsl_linalg_cholesky_decomp(cov_spec);
 	gsl_matrix_set_zero(mat_step);
 	if(err==GSL_EDOM) { //If covariance is not positive definite just save standard deviations
-	  dbg_printf("Covariance is not positive definite\n");
+	  dbg_printf(do_print,"Covariance is not positive definite\n");
 	  for(ic1=0;ic1<par->n_spec_vary;ic1++)
 	    gsl_matrix_set(mat_step,ic1,ic1,factor_rescale*mean_spec[ic1]);
 	}
@@ -396,21 +436,21 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
       ratio_accepted=0;
     }
   }
-  dbg_printf("Final covariance :\n");
+  dbg_printf(do_print,"Final covariance :\n");
   for(ic1=0;ic1<par->n_spec_vary;ic1++) { //Compute covariance
-    dbg_printf("   |");
+    dbg_printf(do_print,"   |");
     for(ic2=0;ic2<par->n_spec_vary;ic2++) {
       flouble cov=gsl_matrix_get(cov_save,ic1,ic2)/n_updated;
       gsl_matrix_set(cov_save,ic1,ic2,cov);
-      dbg_printf(" %lE",cov);
+      dbg_printf(do_print," %lE",cov);
     }
-    dbg_printf("|\n");
+    dbg_printf(do_print,"|\n");
     mean_spec[ic1]=sqrt(gsl_matrix_get(cov_save,ic1,ic1)); //Save diagonal
   }
   err=gsl_linalg_cholesky_decomp(cov_save); //Cholesky decomposition of covariance
   gsl_matrix_set_zero(mat_step);
   if(err==GSL_EDOM) { //If covariance is not positive definite just save standard deviations
-    dbg_printf("Final covariance is not positive definite!!!!\n");
+    dbg_printf(do_print,"Final covariance is not positive definite!!!!\n");
     for(ic1=0;ic1<par->n_spec_vary;ic1++)
       gsl_matrix_set(mat_step,ic1,ic1,factor_rescale*mean_spec[ic1]);
   }
@@ -421,23 +461,34 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
     }
   }
 
-  dbg_printf("Starting actual sampling\n");
+  dbg_printf(do_print,"Starting actual sampling\n");
 #ifdef _DEBUG
-  ratio_accepted=0;
+  if(ipix_big==par->dbg_ipix)
+    ratio_accepted=0;
 #endif //_DEBUG
   for(i_sample=0;i_sample<par->n_samples;i_sample++) {
     if(i_sample%par->n_spec_resample==0)
       draw_amplitudes(par,data,noise_w,x_spec_old,pst,amps_dum); //A_{n+1}(b_n)
     accepted=draw_spectral_indices(par,data,noise_w,amps_dum,x_spec_old,pst,mat_step,x_spec_new); //b_{n+1}(A_{n+1})
     memcpy(x_spec_old,x_spec_new,par->n_param_max*sizeof(flouble));
+    if((par->flag_write_samples) && (i_sample%par->n_output_rate==0)) {
+      int i_sample_write=i_sample/par->n_output_rate;
+      my_fwrite(&i_sample_write,sizeof(int),1,fo);
+      my_fwrite(x_spec_old,sizeof(flouble),par->n_spec_vary,fo);
+      my_fwrite(amps_dum,sizeof(flouble),par->n_sub*par->n_pol*par->n_comp,fo);
+      my_fwrite(&i_sample_write,sizeof(int),1,fo);
+    }
 
 #ifdef _DEBUG
-    memcpy(&(par->dbg_extra[(i_sample+par->n_samples_burn)*par->n_spec_vary]),x_spec_old,par->n_spec_vary*sizeof(flouble));
-    ratio_accepted+=accepted;
-    if(i_sample && (i_sample%par->n_update_covar==par->n_update_covar-1)) {
-      ratio_accepted/=par->n_update_covar;
-      dbg_printf("%d Acceptance ratio %.2lf\n",i_sample,ratio_accepted);
-      ratio_accepted=0;
+    if(ipix_big==par->dbg_ipix) {
+      memcpy(&(par->dbg_extra[(i_sample+par->n_samples_burn)*par->n_spec_vary]),
+	     x_spec_old,par->n_spec_vary*sizeof(flouble));
+      ratio_accepted+=accepted;
+      if(i_sample && (i_sample%par->n_update_covar==par->n_update_covar-1)) {
+	ratio_accepted/=par->n_update_covar;
+	dbg_printf(do_print,"%d Acceptance ratio %.2lf\n",i_sample,ratio_accepted);
+	ratio_accepted=0;
+      }
     }
 #endif //_DEBUG
 
@@ -484,6 +535,8 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
     }
   }
 
+  if(par->flag_write_samples)
+    close_region_file(fo,ipix_big);
   free(amps_dum);
   free(x_spec_old);
   free(x_spec_new);

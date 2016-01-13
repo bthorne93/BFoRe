@@ -12,6 +12,14 @@ size_t my_fwrite(const void *ptr, size_t size, size_t nmemb,FILE *stream)
   return nmemb;
 }
 
+size_t my_fread(void *ptr,size_t size,size_t count,FILE *stream)
+{
+  if(fread(ptr,size,count,stream)!=count)
+    report_error(1,"Error freading\n");
+
+  return count;
+}
+
 int my_linecount(FILE *f)
 {
   int i0=0;
@@ -22,16 +30,18 @@ int my_linecount(FILE *f)
   return i0;
 }
 
-void dbg_printf(char *fmt,...)
+void dbg_printf(int do_print,char *fmt,...)
 {
 #ifdef _DEBUG
-  va_list args;
-  char msg[256];
-
-  va_start(args,fmt);
-  vsprintf(msg,fmt,args);
-  va_end(args);
-  printf("%s",msg);
+  if(do_print) {
+    va_list args;
+    char msg[256];
+    
+    va_start(args,fmt);
+    vsprintf(msg,fmt,args);
+    va_end(args);
+    printf("%s",msg);
+  }
 #endif //_DEBUG
 }
 
@@ -95,6 +105,7 @@ static ParamBFoRe *param_bfore_new(void)
   par->maps_noise_weight=NULL;
 
   sprintf(par->output_prefix,"default");
+  par->flag_write_samples=0;
   par->map_components_mean=NULL;
   par->map_components_covar=NULL;
   par->map_indices_mean=NULL;
@@ -144,6 +155,7 @@ static ParamBFoRe *param_bfore_new(void)
 
   par->seed=1234;
   par->n_samples=100000;
+  par->n_output_rate=100;
   par->frac_samples_burn=0.2;
   par->n_update_covar=1000;
   par->n_samples_burn=20000;
@@ -157,12 +169,18 @@ static ParamBFoRe *param_bfore_new(void)
 
 static void param_bfore_print(ParamBFoRe *par)
 {
+  int n_samples_output=par->n_samples/par->n_output_rate;
+  if(par->n_samples%par->n_output_rate)
+    n_samples_output++;
+
   printf("Read parameters:\n");
   printf(" - Nside = %d\n",par->nside);
   printf(" - Nside_spec = %d\n",par->nside_spec);
   printf(" - Input maps: %s\n",par->input_data_prefix);
   printf(" - Input noise: %s\n",par->input_noise_prefix);
   printf(" - Output prefix: %s\n",par->output_prefix);
+  if(par->flag_write_samples)
+    printf(" - Will output %d individual samples\n",n_samples_output);
   printf(" - Frequency list: %s\n",par->fname_nulist);
   if(par->flag_include_polarization)
     printf(" - Will include T, Q and U\n");
@@ -213,6 +231,8 @@ static void param_bfore_print(ParamBFoRe *par)
   printf(" - Seed = %lu\n",par->seed);
   printf(" - Will take %d samples\n",par->n_samples);
   printf("   after %d burning steps\n",par->n_samples_burn);
+  if(par->flag_write_samples)
+    printf(" - Will output every %d-th sample\n",par->n_output_rate);
   printf(" - Proposal covariance will be updated every %d burning steps\n",
 	 par->n_update_covar);
   printf(" - Amplitudes will be resampled every %d steps\n",par->n_spec_resample);
@@ -268,6 +288,8 @@ ParamBFoRe *read_params(char *fname)
     else if(!strcmp(s1,"fname_nulist="))
       sprintf(par->fname_nulist,"%s",s2);
 
+    else if(!strcmp(s1,"write_samples="))
+      par->flag_write_samples=atoi(s2);
     else if(!strcmp(s1,"include_polarization="))
       par->flag_include_polarization=atoi(s2);
     else if(!strcmp(s1,"include_cmb="))
@@ -314,6 +336,8 @@ ParamBFoRe *read_params(char *fname)
       par->seed=atoi(s2);
     else if(!strcmp(s1,"n_samples="))
       par->n_samples=atoi(s2);
+    else if(!strcmp(s1,"n_output_rate="))
+      par->n_output_rate=atoi(s2);
     else if(!strcmp(s1,"burning_fraction="))
       par->frac_samples_burn=atof(s2);
     else if(!strcmp(s1,"n_update_covar="))
@@ -588,45 +612,28 @@ static void write_debug_info(ParamBFoRe *par)
 }
 #endif //_DEBUG
 
-void write_output(ParamBFoRe *par)
+static int reduce_map(flouble *map,int n_elements)
 {
-#ifdef _DEBUG
-  write_debug_info(par);
-#else //_DEBUG
+#ifdef _WITH_MPI
+  if(NodeThis==0)
+    MPI_Reduce(MPI_IN_PLACE,map,n_elements,FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+  else
+    MPI_Reduce(map,NULL,n_elements,FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
+#endif //_WITH_MPI
+
+  return 0;
+}
+
+static void write_moments(ParamBFoRe *par)
+{
   int ic1,ic2,ipol,ipix,ncorr,is1,is2,ispec;
   char fname[256];
   flouble **map_out;
 
-#ifdef _WITH_MPI
-  if(NodeThis==0) {
-    MPI_Reduce(MPI_IN_PLACE,par->map_components_mean,
-	       par->n_comp*par->n_pol*par->n_pix,
-	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE,par->map_components_covar,
-	       par->n_comp*par->n_comp*par->n_pol*par->n_pix,
-	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE,par->map_indices_mean,
-	       par->n_spec_vary*par->n_pix_spec,
-	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-    MPI_Reduce(MPI_IN_PLACE,par->map_indices_covar,
-	       par->n_spec_vary*par->n_spec_vary*par->n_pix_spec,
-	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-  }
-  else {
-    MPI_Reduce(par->map_components_mean,NULL,
-	       par->n_comp*par->n_pol*par->n_pix,
-	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-    MPI_Reduce(par->map_components_covar,NULL,
-	       par->n_comp*par->n_comp*par->n_pol*par->n_pix,
-	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-    MPI_Reduce(par->map_indices_mean,NULL,
-	       par->n_spec_vary*par->n_pix_spec,
-	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-    MPI_Reduce(par->map_indices_covar,NULL,
-	       par->n_spec_vary*par->n_spec_vary*par->n_pix_spec,
-	       FLOUBLE_MPI,MPI_SUM,0,MPI_COMM_WORLD);
-  }
-#endif //_WITH_MPI
+  reduce_map(par->map_components_mean,par->n_comp*par->n_pol*par->n_pix);
+  reduce_map(par->map_components_covar,par->n_comp*par->n_comp*par->n_pol*par->n_pix);
+  reduce_map(par->map_indices_mean,par->n_spec_vary*par->n_pix_spec);
+  reduce_map(par->map_indices_covar,par->n_spec_vary*par->n_spec_vary*par->n_pix_spec);
 
   if(NodeThis==0) {
     //Write output amplitude means
@@ -662,8 +669,8 @@ void write_output(ParamBFoRe *par)
 	  map_out[imap]=my_malloc(par->n_pix*sizeof(flouble));
 	  for(ipix=0;ipix<par->n_pix;ipix++) {
 	    map_out[imap][ipix]=
-	      par->map_components_mean[ic2+par->n_comp*(ic1+par->n_comp*
-							(ipol+par->n_pol*ipix))];
+	      par->map_components_covar[ic2+par->n_comp*(ic1+par->n_comp*
+							 (ipol+par->n_pol*ipix))];
 	  }
 	  he_nest2ring_inplace(map_out[imap],par->nside);
 	  icov++;
@@ -722,5 +729,112 @@ void write_output(ParamBFoRe *par)
     }
     free(map_out);
   }
+}
+
+static int read_regions_header(FILE *fi)
+{
+  int ipix;
+  my_fread(&ipix,sizeof(int),1,fi);
+  fseek(fi,12*sizeof(int),SEEK_CUR);
+  return ipix;
+}
+
+void write_samples(ParamBFoRe *par)
+{
+  flouble **maps_amp,**maps_ind;
+  char fname[256];
+  int ii,isam,ipix,ipol,ic1;
+  int n_samples_written=par->n_samples/par->n_output_rate;
+  long size_block=2*sizeof(int)+(par->n_spec_vary+par->n_sub*par->n_pol*par->n_comp)*sizeof(flouble);
+  flouble *ind_dum=my_malloc(par->n_spec_vary*sizeof(flouble));
+  flouble *amp_dum=my_malloc(par->n_pol*par->n_comp*par->n_sub*sizeof(flouble));
+  if(par->n_samples%par->n_output_rate)
+    n_samples_written++;
+
+  maps_amp=my_malloc(par->n_pol*par->n_comp*sizeof(flouble *));
+  for(ii=0;ii<par->n_pol*par->n_comp;ii++)
+    maps_amp[ii]=my_malloc(par->n_pix*sizeof(flouble));
+
+  maps_ind=my_malloc(par->n_spec_vary*sizeof(flouble *));
+  for(ii=0;ii<par->n_spec_vary;ii++)
+    maps_ind[ii]=my_malloc(par->n_pix_spec*sizeof(flouble));
+
+  for(isam=0;isam<n_samples_written;isam++) {
+    if(isam%NNodes==NodeThis) {
+      int ipix_big;
+      for(ipix_big=0;ipix_big<par->n_pix_spec;ipix_big++) {
+	int isam_dum,ipix0;
+	FILE *fi;
+
+	ipix0=ipix_big*par->n_sub;
+
+	sprintf(fname,"%s_pix%d.dat",par->output_prefix,ipix_big);
+	fi=my_fopen(fname,"rb");
+	if(ipix_big!=read_regions_header(fi)) //Read header
+	  report_error(1,"Wrong pixel!\n");
+	fseek(fi,size_block*isam,SEEK_CUR); //Jump to sample
+	my_fread(&isam_dum,sizeof(isam_dum),1,fi);
+	if(isam_dum!=isam)
+	  report_error(1,"Wrong sample!\n");
+	my_fread(ind_dum,sizeof(flouble),par->n_spec_vary,fi); //Read spectral indices
+	my_fread(amp_dum,sizeof(flouble),par->n_pol*par->n_comp*par->n_sub,fi); //Read amplitudes
+	my_fread(&isam_dum,sizeof(isam_dum),1,fi);
+	if(isam_dum!=isam)
+	  report_error(1,"Wrong sample!\n");
+	fclose(fi);
+	for(ipol=0;ipol<par->n_pol;ipol++) { //Copy amplitudes
+	  for(ic1=0;ic1<par->n_comp;ic1++) {
+	    int imap=ic1+par->n_comp*ipol;
+	    for(ipix=0;ipix<par->n_sub;ipix++)
+	      maps_amp[imap][ipix0+ipix]=amp_dum[ic1+par->n_comp*(ipol+par->n_pol*ipix)];
+	  }
+	}
+	for(ic1=0;ic1<par->n_spec_vary;ic1++) //Copy spectral indices
+	  maps_ind[ic1][ipix_big]=ind_dum[ic1];
+      }
+      //nest2ring
+      for(ipol=0;ipol<par->n_pol;ipol++) {
+	for(ic1=0;ic1<par->n_comp;ic1++) {
+	  int imap=ic1+par->n_comp*ipol;
+	  he_nest2ring_inplace(maps_amp[imap],par->nside);
+	}
+      }
+      for(ic1=0;ic1<par->n_spec_vary;ic1++)
+	he_nest2ring_inplace(maps_ind[ic1],par->nside_spec);
+
+      //Write maps
+      sprintf(fname,"%s_sample%d_amps.dat",par->output_prefix,isam);
+      he_write_healpix_map(maps_amp,par->n_pol*par->n_comp,par->nside,fname);
+      sprintf(fname,"%s_sample%d_spec.dat",par->output_prefix,isam);
+      he_write_healpix_map(maps_ind,par->n_spec_vary,par->nside_spec,fname);
+    }
+  }
+
+  free(ind_dum);
+  free(amp_dum);
+  for(ii=0;ii<par->n_pol*par->n_comp;ii++)
+    free(maps_amp[ii]);
+  free(maps_amp);
+  for(ii=0;ii<par->n_spec_vary;ii++)
+    free(maps_ind[ii]);
+  free(maps_ind);
+}
+
+void write_output(ParamBFoRe *par)
+{
+#ifdef _DEBUG
+  if(NodeThis==0)
+    printf("  Writing debug info\n");
+  write_debug_info(par);
 #endif //_DEBUG
+  //#else //_DEBUG
+  if(NodeThis==0)
+    printf("  Writing distribution moments\n");
+  write_moments(par);
+  if(par->flag_write_samples) {
+    if(NodeThis==0)
+      printf("  Writing individual samles\n");
+    write_samples(par);
+  }
+  //#endif //_DEBUG
 }

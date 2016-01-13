@@ -60,6 +60,7 @@ typedef struct {
   flouble *maps_noise_weight;
 
   char output_prefix[256];
+  int flag_write_samples;
   flouble *map_components_mean;
   flouble *map_components_covar;
   flouble *map_indices_mean;
@@ -110,6 +111,7 @@ typedef struct {
 
   unsigned long seed;
   int n_samples;
+  int n_output_rate;
   flouble frac_samples_burn;
   int n_update_covar;
   int n_samples_burn;
@@ -129,10 +131,11 @@ void *my_malloc(size_t size);
 void *my_calloc(size_t nmemb,size_t size);
 FILE *my_fopen(const char *path,const char *mode);
 size_t my_fwrite(const void *ptr, size_t size, size_t nmemb,FILE *stream);
+size_t my_fread(void *ptr,size_t size,size_t count,FILE *stream);
 void param_bfore_free(ParamBFoRe *par);
 ParamBFoRe *read_params(char *fname);
 void write_output(ParamBFoRe *par);
-void dbg_printf(char *fmt,...);
+void dbg_printf(int do_print,char *fmt,...);
 
 //Defined in healpix_extra.c
 #ifdef _WITH_SHT
