@@ -8,6 +8,8 @@ PixelState *pixel_state_new(ParamBFoRe *par,unsigned long seed)
   pst->rng=init_rng(seed);
   pst->cov_inv=my_malloc(par->n_pix*par->n_pol*sizeof(gsl_matrix *));
   pst->vec_mean=my_malloc(par->n_pix*par->n_pol*sizeof(gsl_vector *));
+  pst->prior_mean=my_malloc(par->n_param_max*sizeof(flouble));
+  pst->prior_isigma=my_malloc(par->n_param_max*sizeof(flouble));
   for(ip=0;ip<par->n_pix*par->n_pol;ip++) {
     pst->cov_inv[ip]=gsl_matrix_alloc(par->n_comp,par->n_comp);
     pst->vec_mean[ip]=gsl_vector_alloc(par->n_comp);
@@ -28,6 +30,8 @@ void pixel_state_free(PixelState *pst,ParamBFoRe *par)
   free(pst->cov_inv);
   free(pst->vec_mean);
   free(pst->rand_spec);
+  free(pst->prior_mean);
+  free(pst->prior_isigma);
   free(pst);
 }
 
@@ -88,20 +92,6 @@ static void compute_f_matrix(ParamBFoRe *par,flouble *x_spec,flouble *f_matrix)
 static double compute_chi2(ParamBFoRe *par,flouble *data,flouble *noise_w,
 			    flouble *amps,flouble *x_spec,PixelState *pst)
 {
-  /*
-    #define BS_M -1.1
-    #define BD_M 1.55
-    #define BS_S 0.03
-    #define BD_S 0.03
-    #define XICR 0.9
-    flouble bs=x_spec[par->index_beta_s_t];
-    flouble bd=x_spec[par->index_beta_d_t];
-    double den=1./(BS_S*BS_S*BD_S*BD_S*(1-XICR*XICR));
-    double chi2=((bs-BS_M)*(bs-BS_M)*BD_S*BD_S+
-    (bd-BD_M)*(bd-BD_M)*BS_S*BS_S-
-    2*(bs-BS_M)*(bd-BD_M)*XICR*BS_S*BD_S)*den;
-  */
-
   int ipix;
   double chi2=0;
 
@@ -211,14 +201,14 @@ static void draw_amplitudes(ParamBFoRe *par,flouble *data,flouble *noise_w,
   }
 }
 
-static flouble chi2_prior(ParamBFoRe *par,flouble *x_spec)
+static flouble chi2_prior(ParamBFoRe *par,PixelState *pst,flouble *x_spec)
 {
   int ipar;
   flouble x,chi2=0;
 
   for(ipar=0;ipar<par->n_spec_vary;ipar++) {
-    if(par->prior_isigma[ipar]>0) {
-      x=(x_spec[ipar]-par->prior_mean[ipar])*par->prior_isigma[ipar];
+    if(pst->prior_isigma[ipar]>0) {
+      x=(x_spec[ipar]-pst->prior_mean[ipar])*pst->prior_isigma[ipar];
       chi2+=x*x;
     }
   }
@@ -241,8 +231,8 @@ static int draw_spectral_indices(ParamBFoRe *par,flouble *data,flouble *noise_w,
       x_spec_new[ipar]+=gsl_matrix_get(mat_step,ipar,ipar2)*pst->rand_spec[ipar2];
   }
 
-  chi2_new=compute_chi2(par,data,noise_w,amps,x_spec_new,pst)+chi2_prior(par,x_spec_new);
-  chi2_old=compute_chi2(par,data,noise_w,amps,x_spec_old,pst)+chi2_prior(par,x_spec_old);
+  chi2_new=compute_chi2(par,data,noise_w,amps,x_spec_new,pst)+chi2_prior(par,pst,x_spec_new);
+  chi2_old=compute_chi2(par,data,noise_w,amps,x_spec_old,pst)+chi2_prior(par,pst,x_spec_old);
       
   ratio=exp(-0.5*(chi2_new-chi2_old));
   
@@ -253,18 +243,14 @@ static int draw_spectral_indices(ParamBFoRe *par,flouble *data,flouble *noise_w,
     }
   }
 
-  //  for(ipar=0;ipar<par->n_spec_vary;ipar++)
-  //    printf(" (%lf %lf)",x_spec_old[ipar],x_spec_new[ipar]);
-  //  printf(" | %lf %lf %lf\n",chi2_old,chi2_new,ratio);
-
   return 1;
 }
 
-static void restart_mcmc(ParamBFoRe *par,flouble *x_spec,gsl_matrix *mat_step,flouble factor)
+static void restart_mcmc(ParamBFoRe *par,PixelState *pst,flouble *x_spec,gsl_matrix *mat_step,flouble factor)
 {
-  x_spec[par->index_beta_s_t]=par->beta_s_0;
-  x_spec[par->index_beta_d_t]=par->beta_d_0;
-  x_spec[par->index_temp_d_t]=par->temp_d_0;
+  x_spec[par->index_beta_s_t]=pst->prior_mean[par->index_beta_s_t];
+  x_spec[par->index_beta_d_t]=pst->prior_mean[par->index_beta_d_t];
+  x_spec[par->index_temp_d_t]=pst->prior_mean[par->index_temp_d_t];
   gsl_matrix_set_zero(mat_step);
   if(par->flag_beta_s_free)
     gsl_matrix_set(mat_step,par->index_beta_s_t,par->index_beta_s_t,par->beta_s_step*factor);
@@ -273,9 +259,9 @@ static void restart_mcmc(ParamBFoRe *par,flouble *x_spec,gsl_matrix *mat_step,fl
   if(par->flag_temp_d_free)
     gsl_matrix_set(mat_step,par->index_temp_d_t,par->index_temp_d_t,par->temp_d_step*factor);
   if(par->flag_include_polarization && par->flag_independent_polarization) {
-    x_spec[par->index_beta_s_p]=par->beta_s_0;
-    x_spec[par->index_beta_d_p]=par->beta_d_0;
-    x_spec[par->index_temp_d_p]=par->temp_d_0;
+    x_spec[par->index_beta_s_p]=pst->prior_mean[par->index_beta_s_p];
+    x_spec[par->index_beta_d_p]=pst->prior_mean[par->index_beta_d_p];
+    x_spec[par->index_temp_d_p]=pst->prior_mean[par->index_temp_d_p];
     if(par->flag_beta_s_free)
       gsl_matrix_set(mat_step,par->index_beta_s_p,par->index_beta_s_p,par->beta_s_step*factor);
     if(par->flag_beta_d_free)
@@ -343,9 +329,41 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
   else
     fo=NULL;
 
+  pst->prior_mean[par->index_beta_s_t]=par->map_prior_centres[par->index_beta_s_t+par->n_param_max*ipix_big];
+  if(par->flag_beta_s_free) {
+    pst->prior_isigma[par->index_beta_s_t]=1./par->map_prior_widths[par->index_beta_s_t+
+								    par->n_param_max*ipix_big];
+  }    
+  pst->prior_mean[par->index_beta_d_t]=par->map_prior_centres[par->index_beta_d_t+par->n_param_max*ipix_big];
+  if(par->flag_beta_d_free) {
+    pst->prior_isigma[par->index_beta_d_t]=1./par->map_prior_widths[par->index_beta_d_t+
+								    par->n_param_max*ipix_big];
+  }    
+  pst->prior_mean[par->index_temp_d_t]=par->map_prior_centres[par->index_temp_d_t+par->n_param_max*ipix_big];
+  if(par->flag_temp_d_free) {
+    pst->prior_isigma[par->index_temp_d_t]=1./par->map_prior_widths[par->index_temp_d_t+
+								    par->n_param_max*ipix_big];
+  }    
+  if(par->flag_include_polarization && par->flag_independent_polarization) {
+    pst->prior_mean[par->index_beta_s_p]=par->map_prior_centres[par->index_beta_s_p+par->n_param_max*ipix_big];
+    if(par->flag_beta_s_free) {
+      pst->prior_isigma[par->index_beta_s_p]=1./par->map_prior_widths[par->index_beta_s_p+
+								      par->n_param_max*ipix_big];
+    }    
+    pst->prior_mean[par->index_beta_d_p]=par->map_prior_centres[par->index_beta_d_p+par->n_param_max*ipix_big];
+    if(par->flag_beta_d_free) {
+      pst->prior_isigma[par->index_beta_d_p]=1./par->map_prior_widths[par->index_beta_d_p+
+								      par->n_param_max*ipix_big];
+    }    
+    pst->prior_mean[par->index_temp_d_p]=par->map_prior_centres[par->index_temp_d_p+par->n_param_max*ipix_big];
+    if(par->flag_temp_d_free) {
+      pst->prior_isigma[par->index_temp_d_p]=1./par->map_prior_widths[par->index_temp_d_p+
+								      par->n_param_max*ipix_big];
+    }
+  }
   memset(amps_mean,0,par->n_sub*par->n_pol*par->n_comp*sizeof(flouble));
   memset(amps_covar,0,par->n_sub*par->n_pol*par->n_comp*par->n_comp*sizeof(flouble));
-  restart_mcmc(par,x_spec_old,mat_step,stepping_factor);
+  restart_mcmc(par,pst,x_spec_old,mat_step,stepping_factor);
 
   dbg_printf(do_print,"Burning\n");
   ratio_accepted=0;
@@ -374,7 +392,7 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
       if(ratio_accepted<=5) { //Check if too few samples were accepted
 	dbg_printf(do_print,"No samples were accepted! Restarting with smaller step size\n");
 	stepping_factor*=0.5;
-	restart_mcmc(par,x_spec_old,mat_step,stepping_factor);
+	restart_mcmc(par,pst,x_spec_old,mat_step,stepping_factor);
 	gsl_matrix_set_zero(cov_save);
 	n_updated=0;
 	i_sample=-1;
@@ -545,3 +563,35 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
   gsl_matrix_free(cov_save);
   gsl_matrix_free(cov_spec);
 }
+
+  /*
+#ifdef _DEBUG_SINGLEPIX
+#define NGRID_BETA_S 256
+#define NGRID_BETA_D 128
+#define BETA_S_MIN -20.
+#define BETA_S_MAX 0.5
+#define BETA_D_MIN 1.
+#define BETA_D_MAX 2.
+  if(ipix_big==par->dbg_ipix) {
+    int ip_s,ip_d;
+    char fffname[256];
+    FILE *fff;
+    flouble *x_spec_here=my_malloc(par->n_param_max*sizeof(flouble));
+
+    sprintf(fffname,"test_chi2_pix%d.txt",ipix_big);
+    fff=my_fopen(fffname,"w");
+
+    memcpy(x_spec_here,x_spec_old,par->n_param_max*sizeof(flouble));
+    draw_amplitudes(par,data,noise_w,x_spec_old,pst,amps_dum); //A_{n+1}(b_n)
+    for(ip_s=0;ip_s<NGRID_BETA_S;ip_s++) {
+      x_spec_here[par->index_beta_s_t]=BETA_S_MIN+(BETA_S_MAX-BETA_S_MIN)*(ip_s+0.5)/NGRID_BETA_S;
+      for(ip_d=0;ip_d<NGRID_BETA_D;ip_d++) {
+	x_spec_here[par->index_beta_d_t]=BETA_D_MIN+(BETA_D_MAX-BETA_D_MIN)*(ip_d+0.5)/NGRID_BETA_D;
+	fprintf(fff,"%lE\n",compute_chi2(par,data,noise_w,amps_dum,x_spec_here,pst)+chi2_prior(par,x_spec_here));
+      }
+    }
+    fclose(fff);
+    free(x_spec_here);
+  }
+#endif //_DEBUG_SINGLEPIX
+  */

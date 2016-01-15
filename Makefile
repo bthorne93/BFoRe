@@ -3,9 +3,10 @@ MPI_CC= mpicc
 WOPT_DEFAULT= -Wall -O3
 ADD_OMP= yes
 ADD_MPI= yes
-DEBUG_VERSION= no
-LIB_GSL= -L/home/dmonge/lib
-INC_GSL= -I/home/dmonge/include
+DEBUG_VERSION= yes
+DEBUG_SINGLEPIX= no
+LIB_GSL= -L/users/damonge/lib
+INC_GSL= -I/users/damonge/include
 LIB_HP=
 INC_HP=
 LIB_FITS=
@@ -22,7 +23,10 @@ else
 	CC= $(SERIAL_CC)
 endif
 ifeq ($(DEBUG_VERSION),yes)
-	WOPT+=-D_DEBUG
+	WOPT+= -D_DEBUG
+ifeq ($(DEBUG_SINGLEPIX),yes)
+	WOPT+= -D_DEBUG_SINGLEPIX
+endif
 endif
 
 CFLAGS= $(WOPT) -I./src $(INC_GSL) $(INC_HP) $(INC_FITS)

@@ -59,6 +59,15 @@ typedef struct {
   char input_noise_prefix[256];
   flouble *maps_noise_weight;
 
+  char input_beta_s_t_prior[256];
+  char input_beta_s_p_prior[256];
+  char input_beta_d_t_prior[256];
+  char input_beta_d_p_prior[256];
+  char input_temp_d_t_prior[256];
+  char input_temp_d_p_prior[256];
+  flouble *map_prior_centres;
+  flouble *map_prior_widths;
+
   char output_prefix[256];
   int flag_write_samples;
   flouble *map_components_mean;
@@ -95,19 +104,11 @@ typedef struct {
   int index_beta_d_p;
   int index_temp_d_t;
   int index_temp_d_p;
-  flouble beta_s_0;
-  flouble beta_d_0;
-  flouble temp_d_0;
   flouble beta_s_step;
   flouble beta_d_step;
   flouble temp_d_step;
-  flouble beta_s_prior;
-  flouble beta_d_prior;
-  flouble temp_d_prior;
   flouble nu0_s;
   flouble nu0_d;
-  flouble *prior_mean;
-  flouble *prior_isigma;
 
   unsigned long seed;
   int n_samples;
@@ -185,6 +186,8 @@ typedef struct {
   flouble *f_matrix;
   gsl_matrix **cov_inv;
   gsl_vector **vec_mean;
+  flouble *prior_mean;
+  flouble *prior_isigma;
   Rng *rng;
   flouble *rand_spec;
 } PixelState;
