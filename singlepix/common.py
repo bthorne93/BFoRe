@@ -206,5 +206,5 @@ def sample_indices(map_data,map_w2,map_amp,x_spec_old,sigma_vary,do_print,par) :
         if np.random.rand(1)>r :
             x_spec_new[:]=x_spec_old[:]
             replaced=0.
-            
+
     return replaced,x_spec_new

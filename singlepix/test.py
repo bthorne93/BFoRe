@@ -40,12 +40,12 @@ print "Will vary %d non-linear parameters"%par.n_spec_vary, par.x_spec_0
 
 map_cmb_true=np.zeros([par.n_pix,par.n_pol])
 for ipol in np.arange(par.n_pol) :
-    map_cmb_true[:,ipol]=hp.read_map("r0p00s4321/cmb_r0p00_ns256s4321.fits",field=ipol)
+    map_cmb_true[:,ipol]=hp.read_map("../../r0p00s4321/cmb_r0p00_ns256s4321.fits",field=ipol)
 
 maps_obs=np.zeros([par.n_pix,par.n_pol,par.n_nu])
 for inu in np.arange(par.n_nu) :
     for ipol in np.arange(par.n_pol) :
-        maps_obs[:,ipol,inu]=hp.read_map("r0p00s4321/obs_r0p00_nu%03d.fits"%(inu+1),field=ipol)
+        maps_obs[:,ipol,inu]=hp.read_map("../../r0p00s4321/obs_r0p00_nu%03d.fits"%(inu+1),field=ipol)
 
 amin2_per_pix=4*np.pi*(180*60/np.pi)**2/par.n_pix
 sigma2_per_pix=par.noise_list**2/amin2_per_pix

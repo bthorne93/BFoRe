@@ -117,6 +117,90 @@ static double compute_chi2(ParamBFoRe *par,flouble *data,flouble *noise_w,
   return chi2;
 }
 
+static flouble chi2_prior(ParamBFoRe *par,PixelState *pst,flouble *x_spec)
+{
+  int ipar;
+  flouble x,chi2=0;
+
+  for(ipar=0;ipar<par->n_spec_vary;ipar++) {
+    if(pst->prior_isigma[ipar]>0) {
+      x=(x_spec[ipar]-pst->prior_mean[ipar])*pst->prior_isigma[ipar];
+      chi2+=x*x;
+    }
+  }
+
+  return chi2;
+}
+
+#ifdef _DEBUG_SINGLEPIX
+static double get_gsl_det(int n,gsl_matrix *mat_ptr)
+{
+  int signum;
+  double det;
+  gsl_permutation * p = gsl_permutation_calloc(n);
+  gsl_matrix * tmp_ptr = gsl_matrix_calloc(n,n);
+  gsl_matrix_memcpy(tmp_ptr, mat_ptr);
+  gsl_linalg_LU_decomp(tmp_ptr, p, &signum);
+  det = gsl_linalg_LU_det(tmp_ptr, signum);
+  gsl_permutation_free(p);
+  gsl_matrix_free(tmp_ptr);
+  return det;
+}
+
+static double compute_marginalized_lpdf(ParamBFoRe *par,flouble *data,flouble *noise_w,
+					flouble *x_spec,PixelState *pst)
+{
+  int ipix;
+  double ln_norm=0,ln_exp=0,ln_prior=-0.5*chi2_prior(par,pst,x_spec);
+  gsl_vector *vaux1=gsl_vector_alloc(par->n_comp);
+  gsl_vector *vaux2=gsl_vector_alloc(par->n_comp);
+  gsl_matrix *maux=gsl_matrix_alloc(par->n_comp,par->n_comp);
+
+  compute_f_matrix(par,x_spec,pst->f_matrix);
+
+  for(ipix=0;ipix<par->n_sub;ipix++) {
+    int ipol;
+    for(ipol=0;ipol<par->n_pol;ipol++) {
+      int ic1;
+      int index_pix=ipol+par->n_pol*ipix;
+      for(ic1=0;ic1<par->n_comp;ic1++) {
+	int ic2,inu;
+	flouble vec=0;
+	for(inu=0;inu<par->n_nu;inu++) {
+	  vec+=
+	    pst->f_matrix[ic1+par->n_comp*(inu+par->n_nu*ipol)]*
+	    data[inu+par->n_nu*index_pix]*noise_w[inu+par->n_nu*index_pix]; //v = F^T N^-1 d
+	}
+	gsl_vector_set(vaux1,ic1,vec);
+	gsl_vector_set(vaux2,ic1,vec);
+	for(ic2=0;ic2<par->n_comp;ic2++) {
+	  flouble icov=0;
+	  for(inu=0;inu<par->n_nu;inu++) {
+	    icov+=
+	      pst->f_matrix[ic1+par->n_comp*(inu+par->n_nu*ipol)]*
+	      pst->f_matrix[ic2+par->n_comp*(inu+par->n_nu*ipol)]*
+	      noise_w[inu+par->n_nu*index_pix]; //C^-1 = F^T N^-1 F
+	  }
+	  gsl_matrix_set(maux,ic1,ic2,icov);
+	}
+      }
+
+      gsl_linalg_cholesky_decomp(maux);
+      gsl_linalg_cholesky_invert(maux); //(F^T N^-1 F)^-1
+      gsl_blas_dgemv(CblasNoTrans,1.,maux,vaux1,0,vaux2); //v2 = (F^T N^-1 F)^-1 F^T N^-1 d
+      for(ic1=0;ic1<par->n_comp;ic1++)
+	ln_exp+=0.5*gsl_vector_get(vaux1,ic1)*gsl_vector_get(vaux2,ic1); //chi2= 0.5*(F^T N^-1 d)^T (F^T N^-1 F)^-1 (F^T N^-1 d)
+      ln_norm+=0.5*log(get_gsl_det(par->n_comp,maux));
+    }
+  }
+  gsl_vector_free(vaux1);
+  gsl_vector_free(vaux2);
+  gsl_matrix_free(maux);
+
+  return ln_exp+ln_norm+ln_prior;
+}
+#endif //_DEBUG_SINGLEPIX
+
 static void analyze_linear_chi2(ParamBFoRe *par,flouble *data,flouble *noise_w,
 				flouble *x_spec,PixelState *pst)
 {
@@ -201,21 +285,6 @@ static void draw_amplitudes(ParamBFoRe *par,flouble *data,flouble *noise_w,
   }
 }
 
-static flouble chi2_prior(ParamBFoRe *par,PixelState *pst,flouble *x_spec)
-{
-  int ipar;
-  flouble x,chi2=0;
-
-  for(ipar=0;ipar<par->n_spec_vary;ipar++) {
-    if(pst->prior_isigma[ipar]>0) {
-      x=(x_spec[ipar]-pst->prior_mean[ipar])*pst->prior_isigma[ipar];
-      chi2+=x*x;
-    }
-  }
-
-  return chi2;
-}
-
 static int draw_spectral_indices(ParamBFoRe *par,flouble *data,flouble *noise_w,
 				 flouble *amps,flouble *x_spec_old,PixelState *pst,
 				 gsl_matrix *mat_step,flouble *x_spec_new)
@@ -233,9 +302,9 @@ static int draw_spectral_indices(ParamBFoRe *par,flouble *data,flouble *noise_w,
 
   chi2_new=compute_chi2(par,data,noise_w,amps,x_spec_new,pst)+chi2_prior(par,pst,x_spec_new);
   chi2_old=compute_chi2(par,data,noise_w,amps,x_spec_old,pst)+chi2_prior(par,pst,x_spec_old);
-      
-  ratio=exp(-0.5*(chi2_new-chi2_old));
   
+  ratio=exp(-0.5*(chi2_new-chi2_old));
+
   if(ratio<1) {
     if(rand_real01(pst->rng)>ratio) {
       memcpy(x_spec_new,x_spec_old,par->n_spec_vary*sizeof(flouble));
@@ -365,6 +434,45 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
   memset(amps_covar,0,par->n_sub*par->n_pol*par->n_comp*par->n_comp*sizeof(flouble));
   restart_mcmc(par,pst,x_spec_old,mat_step,stepping_factor);
 
+#ifdef _DEBUG_SINGLEPIX
+#define NGRID_BETA_S 256
+#define NGRID_BETA_D 128
+#define BETA_S_MIN -20.
+#define BETA_S_MAX 0.5
+#define BETA_D_MIN 1.
+#define BETA_D_MAX 2.
+  if(ipix_big==par->dbg_ipix) {
+    int isam,ip_s,ip_d;
+    char fffname[256];
+    FILE *fff;
+    flouble *x_spec_here=my_malloc(par->n_param_max*sizeof(flouble));
+    double *probb_arr=my_calloc(NGRID_BETA_S*NGRID_BETA_D,sizeof(double));
+
+    memcpy(x_spec_here,x_spec_old,par->n_param_max*sizeof(flouble));
+    for(ip_s=0;ip_s<NGRID_BETA_S;ip_s++) {
+      printf("sampling %d\n",ip_s);
+      x_spec_here[par->index_beta_s_t]=BETA_S_MIN+
+	(BETA_S_MAX-BETA_S_MIN)*(ip_s+0.5)/NGRID_BETA_S;
+      for(ip_d=0;ip_d<NGRID_BETA_D;ip_d++) {
+	x_spec_here[par->index_beta_d_t]=BETA_D_MIN+
+	  (BETA_D_MAX-BETA_D_MIN)*(ip_d+0.5)/NGRID_BETA_D;
+	probb_arr[ip_d+NGRID_BETA_D*ip_s]=compute_marginalized_lpdf(par,data,noise_w,x_spec_here,pst);
+      }
+    }
+    free(x_spec_here);
+
+    sprintf(fffname,"test_chi2_pix%d.txt",ipix_big);
+    fff=my_fopen(fffname,"w");
+    for(ip_s=0;ip_s<NGRID_BETA_S;ip_s++) {
+      for(ip_d=0;ip_d<NGRID_BETA_D;ip_d++) {
+	double chi2=probb_arr[ip_d+NGRID_BETA_D*ip_s];
+	fprintf(fff,"%lE\n",chi2);
+      }
+    }
+    fclose(fff);
+  }
+#endif //_DEBUG_SINGLEPIX
+
   dbg_printf(do_print,"Burning\n");
   ratio_accepted=0;
   gsl_matrix_set_zero(cov_spec);
@@ -429,6 +537,7 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
 			     gsl_matrix_get(cov_spec,ic1,ic2));
 	  }
 	}
+
 	//Save diagonal
 	for(ic1=0;ic1<par->n_spec_vary;ic1++)
 	  mean_spec[ic1]=sqrt(gsl_matrix_get(cov_spec,ic1,ic1));
@@ -563,35 +672,3 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
   gsl_matrix_free(cov_save);
   gsl_matrix_free(cov_spec);
 }
-
-  /*
-#ifdef _DEBUG_SINGLEPIX
-#define NGRID_BETA_S 256
-#define NGRID_BETA_D 128
-#define BETA_S_MIN -20.
-#define BETA_S_MAX 0.5
-#define BETA_D_MIN 1.
-#define BETA_D_MAX 2.
-  if(ipix_big==par->dbg_ipix) {
-    int ip_s,ip_d;
-    char fffname[256];
-    FILE *fff;
-    flouble *x_spec_here=my_malloc(par->n_param_max*sizeof(flouble));
-
-    sprintf(fffname,"test_chi2_pix%d.txt",ipix_big);
-    fff=my_fopen(fffname,"w");
-
-    memcpy(x_spec_here,x_spec_old,par->n_param_max*sizeof(flouble));
-    draw_amplitudes(par,data,noise_w,x_spec_old,pst,amps_dum); //A_{n+1}(b_n)
-    for(ip_s=0;ip_s<NGRID_BETA_S;ip_s++) {
-      x_spec_here[par->index_beta_s_t]=BETA_S_MIN+(BETA_S_MAX-BETA_S_MIN)*(ip_s+0.5)/NGRID_BETA_S;
-      for(ip_d=0;ip_d<NGRID_BETA_D;ip_d++) {
-	x_spec_here[par->index_beta_d_t]=BETA_D_MIN+(BETA_D_MAX-BETA_D_MIN)*(ip_d+0.5)/NGRID_BETA_D;
-	fprintf(fff,"%lE\n",compute_chi2(par,data,noise_w,amps_dum,x_spec_here,pst)+chi2_prior(par,x_spec_here));
-      }
-    }
-    fclose(fff);
-    free(x_spec_here);
-  }
-#endif //_DEBUG_SINGLEPIX
-  */
