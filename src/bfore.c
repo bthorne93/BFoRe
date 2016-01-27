@@ -523,7 +523,6 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
       accepted=draw_spectral_indices(par,data,noise_w,amps_dum,x_spec_old,pst,mat_step,x_spec_new); //b_{n+1}(A_{n+1})
       memcpy(x_spec_old,x_spec_new,par->n_param_max*sizeof(flouble));
 #ifdef _DEBUG
-      printf("%d\n",i_sample);
       if(ipix_big==par->dbg_ipix)
 	memcpy(&(par->dbg_extra[i_sample*par->n_spec_vary]),x_spec_old,par->n_spec_vary*sizeof(flouble));
 #endif //_DEBUG
@@ -635,10 +634,8 @@ void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big)
     ratio_accepted=0;
 #endif //_DEBUG
   for(i_sample=0;i_sample<par->n_samples;i_sample++) {
-    if(i_sample%par->n_spec_resample==0) {
-      printf("%d \n",i_sample);
+    if(i_sample%par->n_spec_resample==0)
       draw_amplitudes(par,data,noise_w,x_spec_old,pst,amps_dum); //A_{n+1}(b_n)
-    }
     if(par->n_spec_vary>0) {
       accepted=draw_spectral_indices(par,data,noise_w,amps_dum,x_spec_old,pst,mat_step,x_spec_new); //b_{n+1}(A_{n+1})
       memcpy(x_spec_old,x_spec_new,par->n_param_max*sizeof(flouble));
