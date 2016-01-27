@@ -131,6 +131,7 @@ static ParamBFoRe *param_bfore_new(void)
   par->flag_include_cmb=0;
   par->flag_include_synchrotron=0;
   par->flag_include_dust=0;
+  par->flag_include_volume_prior=0;
   par->n_comp=0;
   par->index_cmb=-1;
   par->index_synchrotron=-1;
@@ -198,30 +199,31 @@ static void param_bfore_print(ParamBFoRe *par)
   if(par->flag_include_synchrotron) printf(" Synchrotron(%d)",par->index_synchrotron);
   if(par->flag_include_dust) printf(" Dust(%d)",par->index_dust);
   printf("\n");
-  printf(" - Free spectral parameters:");
-  if(par->flag_include_synchrotron) {
-    printf(" beta_s : (%d)%s",par->index_beta_s_t,par->input_beta_s_t_prior);
-    printf(", (%d)%s",par->index_beta_s_p,par->input_beta_s_p_prior);
+  printf(" - Free spectral parameters (%d out of %d):\n",par->n_spec_vary,par->n_param_max);
+  if(par->flag_include_synchrotron && par->flag_beta_s_free) {
+    printf("    beta_s : (%d) [%s,",par->index_beta_s_t,par->input_beta_s_t_prior);
+    printf(",%s]",par->input_beta_s_p_prior);
     printf(", D(beta_s) = %.3lf\n",par->beta_s_step);
-    printf("\n");
   }      
-  if(par->flag_include_dust) {
-    printf(" beta_d : (%d)%s",par->index_beta_d_t,par->input_beta_d_t_prior);
-    printf(", (%d)%s",par->index_beta_d_p,par->input_beta_d_p_prior);
+  if(par->flag_include_dust && par->flag_beta_d_free) {
+    printf("    beta_d : (%d) [%s,",par->index_beta_d_t,par->input_beta_d_t_prior);
+    printf(",%s]",par->input_beta_d_p_prior);
     printf(", D(beta_d) = %.3lf\n",par->beta_d_step);
-    printf("\n");
   }      
   if(par->flag_include_dust && par->flag_temp_d_free) {
-    printf(" temp_d : (%d)%s",par->index_temp_d_t,par->input_temp_d_t_prior);
-    printf(", (%d)%s",par->index_temp_d_p,par->input_temp_d_p_prior);
+    printf("    temp_d : (%d)[%s,",par->index_temp_d_t,par->input_temp_d_t_prior);
+    printf(",%s]",par->input_temp_d_p_prior);
     printf(", D(temp_d) = %.3lf\n",par->temp_d_step);
     printf("\n");
   }
-  printf(". %d out of %d\n",par->n_spec_vary,par->n_param_max);
   printf(" - %d DOF per pixel\n",par->n_dof_pix);
   printf(" - Seed = %lu\n",par->seed);
   printf(" - Will take %d samples\n",par->n_samples);
   printf("   after %d burning steps\n",par->n_samples_burn);
+  if(par->flag_include_volume_prior)
+    printf(" - Will include volume prior on spectral indices\n");
+  else
+    printf(" - Won't include volume prior on spectral indices\n");
   if(par->flag_write_samples)
     printf(" - Will output every %d-th sample\n",par->n_output_rate);
   printf(" - Proposal covariance will be updated every %d burning steps\n",
@@ -303,6 +305,8 @@ ParamBFoRe *read_params(char *fname)
       par->flag_include_dust=atoi(s2);
     else if(!strcmp(s1,"independent_polarization="))
       par->flag_independent_polarization=atoi(s2);
+    else if(!strcmp(s1,"include_volume_prior="))
+      par->flag_include_volume_prior=atoi(s2);
     else if(!strcmp(s1,"beta_s_free="))
       par->flag_beta_s_free=atoi(s2);
     else if(!strcmp(s1,"beta_d_free="))
@@ -688,8 +692,10 @@ static void write_moments(ParamBFoRe *par)
 
   reduce_map(par->map_components_mean,par->n_comp*par->n_pol*par->n_pix);
   reduce_map(par->map_components_covar,par->n_comp*par->n_comp*par->n_pol*par->n_pix);
-  reduce_map(par->map_indices_mean,par->n_spec_vary*par->n_pix_spec);
-  reduce_map(par->map_indices_covar,par->n_spec_vary*par->n_spec_vary*par->n_pix_spec);
+  if(par->n_spec_vary>0) {
+    reduce_map(par->map_indices_mean,par->n_spec_vary*par->n_pix_spec);
+    reduce_map(par->map_indices_covar,par->n_spec_vary*par->n_spec_vary*par->n_pix_spec);
+  }
 
   if(NodeThis==0) {
     //Write output amplitude means
@@ -712,7 +718,7 @@ static void write_moments(ParamBFoRe *par)
       }
     }
     free(map_out);
-    
+
     //Write output amplitude covariances
     sprintf(fname,"!%s_components_covar.fits",par->output_prefix);
     ncorr=par->n_comp*(par->n_comp+1)/2;
@@ -745,45 +751,47 @@ static void write_moments(ParamBFoRe *par)
       }
     }
     free(map_out);
-    
-    //Write output spectral means
-    sprintf(fname,"!%s_spec_mean.fits",par->output_prefix);
-    map_out=my_malloc(par->n_spec_vary*sizeof(flouble *));
-    for(is1=0;is1<par->n_spec_vary;is1++) {
-      map_out[is1]=my_malloc(par->n_pix_spec*sizeof(flouble));
-      for(ipix=0;ipix<par->n_pix_spec;ipix++)
-	map_out[is1][ipix]=par->map_indices_mean[is1+par->n_spec_vary*ipix];
-      he_nest2ring_inplace(map_out[is1],par->nside_spec);
-    }
-    he_write_healpix_map(map_out,par->n_spec_vary,par->nside_spec,fname);
-    for(is1=0;is1<par->n_spec_vary;is1++)
-      free(map_out[is1]);
-    free(map_out);
-    
-    //Write output spectral covariances
-    sprintf(fname,"!%s_spec_covar.fits",par->output_prefix);
-    ncorr=par->n_spec_vary*(par->n_spec_vary+1)/2;
-    map_out=my_malloc(ncorr*sizeof(flouble *));
-    ispec=0;
-    for(is1=0;is1<par->n_spec_vary;is1++) {
-      for(is2=is1;is2<par->n_spec_vary;is2++) {
-	map_out[ispec]=my_malloc(par->n_pix_spec*sizeof(flouble));
+
+    if(par->n_spec_vary>0) {
+      //Write output spectral means
+      sprintf(fname,"!%s_spec_mean.fits",par->output_prefix);
+      map_out=my_malloc(par->n_spec_vary*sizeof(flouble *));
+      for(is1=0;is1<par->n_spec_vary;is1++) {
+	map_out[is1]=my_malloc(par->n_pix_spec*sizeof(flouble));
 	for(ipix=0;ipix<par->n_pix_spec;ipix++)
-	  map_out[ispec][ipix]=par->map_indices_covar[is2+par->n_spec_vary*
-						      (is1+par->n_spec_vary*ipix)];
-	he_nest2ring_inplace(map_out[ispec],par->nside_spec);
-	ispec++;
+	  map_out[is1][ipix]=par->map_indices_mean[is1+par->n_spec_vary*ipix];
+	he_nest2ring_inplace(map_out[is1],par->nside_spec);
       }
-    }
-    he_write_healpix_map(map_out,par->n_spec_vary,par->nside_spec,fname);
-    ispec=0;
-    for(is1=0;is1<par->n_spec_vary;is1++) {
-      for(is2=is1;is2<par->n_spec_vary;is2++) {
-	free(map_out[ispec]);
-	ispec++;
+      he_write_healpix_map(map_out,par->n_spec_vary,par->nside_spec,fname);
+      for(is1=0;is1<par->n_spec_vary;is1++)
+	free(map_out[is1]);
+      free(map_out);
+      
+      //Write output spectral covariances
+      sprintf(fname,"!%s_spec_covar.fits",par->output_prefix);
+      ncorr=par->n_spec_vary*(par->n_spec_vary+1)/2;
+      map_out=my_malloc(ncorr*sizeof(flouble *));
+      ispec=0;
+      for(is1=0;is1<par->n_spec_vary;is1++) {
+	for(is2=is1;is2<par->n_spec_vary;is2++) {
+	  map_out[ispec]=my_malloc(par->n_pix_spec*sizeof(flouble));
+	  for(ipix=0;ipix<par->n_pix_spec;ipix++)
+	    map_out[ispec][ipix]=par->map_indices_covar[is2+par->n_spec_vary*
+							(is1+par->n_spec_vary*ipix)];
+	  he_nest2ring_inplace(map_out[ispec],par->nside_spec);
+	  ispec++;
+	}
       }
+      he_write_healpix_map(map_out,ncorr,par->nside_spec,fname);
+      ispec=0;
+      for(is1=0;is1<par->n_spec_vary;is1++) {
+	for(is2=is1;is2<par->n_spec_vary;is2++) {
+	  free(map_out[ispec]);
+	  ispec++;
+	}
+      }
+      free(map_out);
     }
-    free(map_out);
   }
 }
 
@@ -861,8 +869,10 @@ void write_samples(ParamBFoRe *par)
       //Write maps
       sprintf(fname,"%s_sample%d_amps.dat",par->output_prefix,isam);
       he_write_healpix_map(maps_amp,par->n_pol*par->n_comp,par->nside,fname);
-      sprintf(fname,"%s_sample%d_spec.dat",par->output_prefix,isam);
-      he_write_healpix_map(maps_ind,par->n_spec_vary,par->nside_spec,fname);
+      if(par->n_spec_vary>0) {
+	sprintf(fname,"%s_sample%d_spec.dat",par->output_prefix,isam);
+	he_write_healpix_map(maps_ind,par->n_spec_vary,par->nside_spec,fname);
+      }
     }
   }
 
@@ -884,7 +894,7 @@ void write_output(ParamBFoRe *par)
   write_debug_info(par);
 #endif //_DEBUG
 
-#ifndef _DEBUG_SINGLEPIX
+  //#ifndef _DEBUG_SINGLEPIX
   //#else //_DEBUG
   if(NodeThis==0)
     printf("  Writing distribution moments\n");
@@ -894,5 +904,5 @@ void write_output(ParamBFoRe *par)
       printf("  Writing individual samles\n");
     write_samples(par);
   }
-#endif //_DEBUG_SINGLEPIX
+  //#endif //_DEBUG_SINGLEPIX
 }

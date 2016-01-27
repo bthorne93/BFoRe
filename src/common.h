@@ -86,6 +86,7 @@ typedef struct {
   int flag_include_cmb;
   int flag_include_synchrotron;
   int flag_include_dust;
+  int flag_include_volume_prior;
   int n_comp;
   int index_cmb;
   int index_synchrotron;
@@ -123,27 +124,6 @@ typedef struct {
 
   int dbg_ipix;
   flouble *dbg_extra;
-
-  int flag_use_cl;
-  char fname_cl_in[256];
-  char fname_cl_out[256];
-  flouble beta_s_t_cprior_centre;
-  flouble beta_s_t_cprior_width;
-  flouble beta_s_p_cprior_centre;
-  flouble beta_s_p_cprior_width;
-  flouble beta_d_t_cprior_centre;
-  flouble beta_d_t_cprior_width;
-  flouble beta_d_p_cprior_centre;
-  flouble beta_d_p_cprior_width;
-  flouble temp_d_t_cprior_centre;
-  flouble temp_d_t_cprior_width;
-  flouble temp_d_p_cprior_centre;
-  flouble temp_d_p_cprior_width;
-  flouble *cl_data;
-  flouble *cl_covariance;
-  flouble *cl_amp_mean;
-  flouble *cl_amp_sigma;
-
 } ParamBFoRe;
 
 //Defined in common.c

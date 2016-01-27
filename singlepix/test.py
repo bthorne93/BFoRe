@@ -4,7 +4,7 @@ import healpy as hp
 import scipy.linalg as lng
 import common as com
 
-theta_patch=70.
+theta_patch=90.
 phi_patch=50.
 plot_stuff=True
 n_samples=10000
@@ -56,6 +56,7 @@ maps_noise_weights=1./maps_s2_noise
 
 npix_spec=hp.nside2npix(nside_spec)
 ipix0=hp.ring2nest(par.nside_spec,hp.ang2pix(par.nside_spec,theta_patch*np.pi/180,phi_patch*np.pi/180))
+print "pixel", ipix0
 map_mean=np.zeros([par.n_pix,par.n_pol,par.n_comp])
 map_sigma=np.zeros([par.n_pix,par.n_pol,par.n_comp])
 map_xspec_mean=np.zeros([npix_spec,par.n_spec_vary])
