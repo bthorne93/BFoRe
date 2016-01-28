@@ -3,10 +3,10 @@ MPI_CC= mpicc
 WOPT_DEFAULT= -Wall -O3
 ADD_OMP= yes
 ADD_MPI= yes
-DEBUG_VERSION= no
-DEBUG_SINGLEPIX= no
-LIB_GSL= -L/users/damonge/lib
-INC_GSL= -I/users/damonge/include
+DEBUG_VERSION= yes
+DEBUG_SINGLEPIX= yes
+LIB_GSL= -L/home/damonge/lib
+INC_GSL= -I/home/damonge/include
 LIB_HP=
 INC_HP=
 LIB_FITS=
@@ -36,9 +36,10 @@ LIBS+= -lgsl -lgslcblas -lchealpix -lcfitsio -lm
 COMMONO= src/common.o
 HEO= src/healpix_extra.o
 RNGO= src/rng.o
+POWELLO= src/powell.o
 BFOREO= src/bfore.o
 MAINO= src/main.o
-OBJ= $(COMMONO) $(HEO) $(RNGO) $(BFOREO) $(MAINO)
+OBJ= $(COMMONO) $(HEO) $(RNGO) $(POWELLO) $(BFOREO) $(MAINO)
 
 EXEC= BFoRe
 all: $(EXEC)

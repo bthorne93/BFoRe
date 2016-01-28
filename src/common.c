@@ -73,8 +73,7 @@ void *my_malloc(size_t size)
 void *my_calloc(size_t nmemb,size_t size)
 {
   void *outptr=calloc(nmemb,size);
-  if(outptr==NULL)
-    report_error(1,"Out of memory\n");
+  if(outptr==NULL) report_error(1,"Out of memory\n");
 
   return outptr;
 }
@@ -132,6 +131,7 @@ static ParamBFoRe *param_bfore_new(void)
   par->flag_include_synchrotron=0;
   par->flag_include_dust=0;
   par->flag_include_volume_prior=0;
+  par->flag_use_marginal=0;
   par->n_comp=0;
   par->index_cmb=-1;
   par->index_synchrotron=-1;
@@ -183,6 +183,10 @@ static void param_bfore_print(ParamBFoRe *par)
   printf(" - Input maps: %s\n",par->input_data_prefix);
   printf(" - Input noise: %s\n",par->input_noise_prefix);
   printf(" - Output prefix: %s\n",par->output_prefix);
+  if(par->flag_use_marginal)
+    printf(" - Will use marginal distribution for indices\n");
+  else
+    printf(" - Will sample amplitudes as well as indices\n");
   if(par->flag_write_samples)
     printf(" - Will output %d individual samples\n",n_samples_output);
   printf(" - Frequency list: %s\n",par->fname_nulist);
@@ -292,7 +296,6 @@ ParamBFoRe *read_params(char *fname)
       sprintf(par->output_prefix,"%s",s2);
     else if(!strcmp(s1,"fname_nulist="))
       sprintf(par->fname_nulist,"%s",s2);
-
     else if(!strcmp(s1,"write_samples="))
       par->flag_write_samples=atoi(s2);
     else if(!strcmp(s1,"include_polarization="))
@@ -307,6 +310,8 @@ ParamBFoRe *read_params(char *fname)
       par->flag_independent_polarization=atoi(s2);
     else if(!strcmp(s1,"include_volume_prior="))
       par->flag_include_volume_prior=atoi(s2);
+    else if(!strcmp(s1,"use_marginal_pdf="))
+      par->flag_use_marginal=atoi(s2);
     else if(!strcmp(s1,"beta_s_free="))
       par->flag_beta_s_free=atoi(s2);
     else if(!strcmp(s1,"beta_d_free="))
@@ -347,6 +352,9 @@ ParamBFoRe *read_params(char *fname)
       fprintf(stderr,"BFoRe: Unknown parameter %s\n",s1);
   }
   fclose(fi);
+
+  if(par->flag_use_marginal)
+    par->flag_write_samples=0;
 
   par->n_side_sub=par->nside/par->nside_spec;
   par->n_sub=par->n_side_sub*par->n_side_sub;

@@ -87,6 +87,7 @@ typedef struct {
   int flag_include_synchrotron;
   int flag_include_dust;
   int flag_include_volume_prior;
+  int flag_use_marginal;
   int n_comp;
   int index_cmb;
   int index_synchrotron;
@@ -180,20 +181,38 @@ unsigned long rand_ulong(Rng *rng);
 double rand_real01(Rng *rng);
 double rand_gauss(Rng *rng);
 
-//Defined in bfore.c
-#define N_CHECK 1000
-#define N_BURN_FRAC 0.2
+//Defined in powell.c
+#define TINY 1.0E-25
+#define ZEPS 1.0E-10
+#define GLIMIT 100.0
+#define GOLD 1.618034
+#define CGOLD 0.3819660
+#define LIN_TOL 2.0E-4
+#define LIN_ITMAX 100
+#define SIGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
+#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
+#define SHFT(a,b,c,d) (a)=(b);(b)=(c);(c)=(d);  
+
 typedef struct {
-  flouble *f_matrix;
-  gsl_matrix **cov_inv;
-  gsl_vector **vec_mean;
-  flouble *prior_mean;
-  flouble *prior_isigma;
-  Rng *rng;
-  flouble *rand_spec;
-} PixelState;
-PixelState *pixel_state_new(ParamBFoRe *par,unsigned long seed);
-void pixel_state_free(PixelState *pst,ParamBFoRe *par);
-void clean_pixel(ParamBFoRe *par,PixelState *pst,int ipix_big);
+  int n;
+  double *p;
+  double **xi;
+  int iter;
+  int max_iter;
+  double fret;
+  double ftol;
+  double *xdum;
+  double *xdir;
+  double (*fun)(double *,void *);
+  void *params;
+} PowellParams;
+void free_powell_params(PowellParams *par);
+PowellParams *powell_params_new(int n,flouble *p,flouble (*fun)(flouble *,void *),
+				void *params,int max_iter,flouble ftol);
+void powell(PowellParams *par);
+
+//Defined in bfore.c
+void clean_pixel(ParamBFoRe *par,Rng *rng,int ipix_big);
+void clean_pixel_from_marginal(ParamBFoRe *par,Rng *rng,int ipix_big);
 
 #endif //_COMMON_BFORE

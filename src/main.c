@@ -58,7 +58,7 @@ int main(int argc,char **argv)
   {
     int ipix_big,ithr;
     unsigned long seed_thr;
-    PixelState *pst;
+    Rng *rng;
 
     ithr=0;
 #ifdef _WITH_OMP
@@ -67,7 +67,7 @@ int main(int argc,char **argv)
 #endif //_DEBUG_SINGLEPIX
 #endif //_WITH_OMP
     seed_thr=par->seed+IThread0+ithr;
-    pst=pixel_state_new(par,seed_thr);
+    rng=init_rng(seed_thr);
 
 #ifdef _DEBUG_SINGLEPIX
     ipix_big=par->dbg_ipix;
@@ -79,9 +79,12 @@ int main(int argc,char **argv)
 #endif //_DEBUG_SINGLEPIX
       {
 	printf("Node %d, thread %d, pixel %d\n",NodeThis,ithr,ipix_big);
-	clean_pixel(par,pst,ipix_big);
+	if(par->flag_use_marginal)
+	  clean_pixel_from_marginal(par,rng,ipix_big);
+	else
+	  clean_pixel(par,rng,ipix_big);
       }//end omp for
-    pixel_state_free(pst,par);
+    end_rng(rng);
   }//end omp parallel
 
   if(NodeThis==0)
