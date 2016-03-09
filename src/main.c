@@ -50,9 +50,26 @@ int main(int argc,char **argv)
   gsl_set_error_handler_off();
   ParamBFoRe *par=read_params(fname_init);
 
+  int ii,n_threads;
+#ifdef _WITH_OMP
+  n_threads=omp_get_max_threads();
+#else //_WITH_OMP
+  n_threads=1;
+#endif //_WITH_OMP
+  PixelState **pst_old,**pst_new=NULL;
+
+  pst_old=my_malloc(n_threads*sizeof(PixelState *));
+  for(ii=0;ii<n_threads;ii++)
+    pst_old[ii]=pixel_state_new(par);
+  if(par->flag_use_marginal) {
+    pst_new=my_malloc(n_threads*sizeof(PixelState *));
+    for(ii=0;ii<n_threads;ii++)
+      pst_new[ii]=pixel_state_new(par);
+  }
+
 #ifdef _WITH_OMP
 #ifndef _DEBUG_SINGLEPIX
-#pragma omp parallel default(none) shared(par,IThread0,NodeThis)
+#pragma omp parallel default(none) shared(par,IThread0,NodeThis,pst_old,pst_new)
 #endif //_DEBUG_SINGLEPIX
 #endif //_WITH_OMP
   {
@@ -80,13 +97,21 @@ int main(int argc,char **argv)
       {
 	printf("Node %d, thread %d, pixel %d\n",NodeThis,ithr,ipix_big);
 	if(par->flag_use_marginal)
-	  clean_pixel_from_marginal(par,rng,ipix_big);
+	  clean_pixel_from_marginal(par,rng,pst_old[ithr],pst_new[ithr],ipix_big);
 	else
-	  clean_pixel(par,rng,ipix_big);
+	  clean_pixel(par,rng,pst_old[ithr],ipix_big);
       }//end omp for
     end_rng(rng);
   }//end omp parallel
 
+  for(ii=0;ii<n_threads;ii++)
+    pixel_state_free(pst_old[ii],par);
+  free(pst_old);
+  if(par->flag_use_marginal) {
+    for(ii=0;ii<n_threads;ii++)
+      pixel_state_free(pst_new[ii],par);
+    free(pst_new);
+  }
   if(NodeThis==0)
     printf("Writing output\n");
   write_output(par);

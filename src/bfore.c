@@ -1,32 +1,7 @@
 #include "common.h"
 
-typedef struct {
-  flouble *f_matrix;
-  gsl_matrix **cov_inv;
-  gsl_vector **vec_mean;
-  flouble *prior_mean;
-  flouble *prior_isigma;
-  flouble *rand_spec;
-  gsl_vector *vaux;
-  double chi2;
-} PixelState;
-
-static PixelState *pixel_state_new(ParamBFoRe *par,int ipix_big)
+static void init_priors(ParamBFoRe *par,PixelState *pst,int ipix_big)
 {
-  int ip;
-  PixelState *pst=my_malloc(sizeof(PixelState));
-  pst->f_matrix=my_malloc(par->n_pol*par->n_nu*par->n_comp*sizeof(flouble));
-  pst->cov_inv=my_malloc(par->n_pix*par->n_pol*sizeof(gsl_matrix *));
-  pst->vec_mean=my_malloc(par->n_pix*par->n_pol*sizeof(gsl_vector *));
-  pst->prior_mean=my_malloc(par->n_param_max*sizeof(flouble));
-  pst->prior_isigma=my_malloc(par->n_param_max*sizeof(flouble));
-  for(ip=0;ip<par->n_pix*par->n_pol;ip++) {
-    pst->cov_inv[ip]=gsl_matrix_alloc(par->n_comp,par->n_comp);
-    pst->vec_mean[ip]=gsl_vector_alloc(par->n_comp);
-  }
-  pst->rand_spec=my_malloc(par->n_spec_vary*sizeof(flouble));
-  pst->vaux=gsl_vector_alloc(par->n_comp);
-
   pst->prior_mean[par->index_beta_s_t]=par->map_prior_centres[par->index_beta_s_t+par->n_param_max*ipix_big];
   if(par->flag_beta_s_free) {
     pst->prior_isigma[par->index_beta_s_t]=1./par->map_prior_widths[par->index_beta_s_t+
@@ -59,15 +34,32 @@ static PixelState *pixel_state_new(ParamBFoRe *par,int ipix_big)
 								      par->n_param_max*ipix_big];
     }
   }
+}
+
+PixelState *pixel_state_new(ParamBFoRe *par)
+{
+  int ip;
+  PixelState *pst=my_malloc(sizeof(PixelState));
+  pst->f_matrix=my_malloc(par->n_pol*par->n_nu*par->n_comp*sizeof(flouble));
+  pst->cov_inv=my_malloc(par->n_sub*par->n_pol*sizeof(gsl_matrix *));
+  pst->vec_mean=my_malloc(par->n_sub*par->n_pol*sizeof(gsl_vector *));
+  pst->prior_mean=my_malloc(par->n_param_max*sizeof(flouble));
+  pst->prior_isigma=my_malloc(par->n_param_max*sizeof(flouble));
+  for(ip=0;ip<par->n_sub*par->n_pol;ip++) {
+    pst->cov_inv[ip]=gsl_matrix_alloc(par->n_comp,par->n_comp);
+    pst->vec_mean[ip]=gsl_vector_alloc(par->n_comp);
+  }
+  pst->rand_spec=my_malloc(par->n_spec_vary*sizeof(flouble));
+  pst->vaux=gsl_vector_alloc(par->n_comp);
 
   return pst;
 }
 
-static void pixel_state_free(PixelState *pst,ParamBFoRe *par)
+void pixel_state_free(PixelState *pst,ParamBFoRe *par)
 {
   int ip;
   free(pst->f_matrix);
-  for(ip=0;ip<par->n_pix*par->n_pol;ip++) {
+  for(ip=0;ip<par->n_sub*par->n_pol;ip++) {
     gsl_matrix_free(pst->cov_inv[ip]);
     gsl_vector_free(pst->vec_mean[ip]);
   }
@@ -489,16 +481,17 @@ static void get_ml_marginal(ParamBFoRe *par,flouble *data,flouble *noise_w,
   pc2.pst=pst;
   pc2.x_spec=x_spec;
 
-  par_pow=powell_params_new(par->n_spec_vary,x_spec,&chi2_marg_func,&pc2,100,1E-6);
+  par_pow=powell_params_new(par->n_spec_vary,x_spec,&chi2_marg_func,&pc2,100,1E-7);
   powell(par_pow);
 
   for(ii=0;ii<par->n_spec_vary;ii++)
     x_spec[ii]=par_pow->p[ii];
+
   compute_marginalized_chi2(par,data,noise_w,x_spec,pst);
   free_powell_params(par_pow);
 }
 
-void clean_pixel(ParamBFoRe *par,Rng *rng,int ipix_big)
+void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big)
 {
   int i_sample,ic1,ic2,ipix,n_updated,err,accepted;
   FILE *fo;
@@ -520,13 +513,13 @@ void clean_pixel(ParamBFoRe *par,Rng *rng,int ipix_big)
   flouble *mean_spec=my_calloc(par->n_spec_vary,sizeof(flouble));
   flouble factor_rescale=2.4/sqrt((double)(par->n_spec_vary));
   int do_print=(ipix_big==par->dbg_ipix);
-  PixelState *pst=pixel_state_new(par,ipix_big);
 
   if(par->flag_write_samples)
     fo=open_region_file(par,ipix_big);
   else
     fo=NULL;
 
+  init_priors(par,pst,ipix_big);
   memset(amps_mean,0,par->n_sub*par->n_pol*par->n_comp*sizeof(flouble));
   memset(amps_covar,0,par->n_sub*par->n_pol*par->n_comp*par->n_comp*sizeof(flouble));
   restart_mcmc(par,pst,x_spec_old,mat_step,stepping_factor);
@@ -741,10 +734,10 @@ void clean_pixel(ParamBFoRe *par,Rng *rng,int ipix_big)
   gsl_matrix_free(mat_step);
   gsl_matrix_free(cov_save);
   gsl_matrix_free(cov_spec);
-  pixel_state_free(pst,par);
 }
 
-void clean_pixel_from_marginal(ParamBFoRe *par,Rng *rng,int ipix_big)
+void clean_pixel_from_marginal(ParamBFoRe *par,Rng *rng,PixelState *pst_old,
+			       PixelState *pst_new,int ipix_big)
 {
   int i_sample,ic1,ic2,ipix,n_updated,err,accepted;
   flouble ratio_accepted;
@@ -764,9 +757,9 @@ void clean_pixel_from_marginal(ParamBFoRe *par,Rng *rng,int ipix_big)
   flouble *mean_spec=my_calloc(par->n_spec_vary,sizeof(flouble));
   flouble factor_rescale=2.4/sqrt((double)(par->n_spec_vary));
   int do_print=(ipix_big==par->dbg_ipix);
-  PixelState *pst_old=pixel_state_new(par,ipix_big);
-  PixelState *pst_new=pixel_state_new(par,ipix_big);
 
+  init_priors(par,pst_old,ipix_big);
+  init_priors(par,pst_new,ipix_big);
   memset(amps_mean,0,par->n_sub*par->n_pol*par->n_comp*sizeof(flouble));
   memset(amps_covar,0,par->n_sub*par->n_pol*par->n_comp*par->n_comp*sizeof(flouble));
   restart_mcmc(par,pst_old,x_spec_old,mat_step,stepping_factor);
@@ -975,8 +968,6 @@ void clean_pixel_from_marginal(ParamBFoRe *par,Rng *rng,int ipix_big)
   gsl_matrix_free(mat_step);
   gsl_matrix_free(cov_save);
   gsl_matrix_free(cov_spec);
-  pixel_state_free(pst_new,par);
-  pixel_state_free(pst_old,par);
 }
 
   /*

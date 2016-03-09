@@ -212,7 +212,20 @@ PowellParams *powell_params_new(int n,flouble *p,flouble (*fun)(flouble *,void *
 void powell(PowellParams *par);
 
 //Defined in bfore.c
-void clean_pixel(ParamBFoRe *par,Rng *rng,int ipix_big);
-void clean_pixel_from_marginal(ParamBFoRe *par,Rng *rng,int ipix_big);
+typedef struct {
+  flouble *f_matrix;
+  gsl_matrix **cov_inv;
+  gsl_vector **vec_mean;
+  flouble *prior_mean;
+  flouble *prior_isigma;
+  flouble *rand_spec;
+  gsl_vector *vaux;
+  double chi2;
+} PixelState;
+PixelState *pixel_state_new(ParamBFoRe *par);
+void pixel_state_free(PixelState *pst,ParamBFoRe *par);
+void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big);
+void clean_pixel_from_marginal(ParamBFoRe *par,Rng *rng,PixelState *pst_old,
+			       PixelState *pst_new,int ipix_big);
 
 #endif //_COMMON_BFORE
