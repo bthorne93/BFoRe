@@ -486,9 +486,9 @@ static void get_ml_marginal(ParamBFoRe *par,flouble *data,flouble *noise_w,
 
   for(ii=0;ii<par->n_spec_vary;ii++)
     x_spec[ii]=par_pow->p[ii];
+  free_powell_params(par_pow);
 
   compute_marginalized_chi2(par,data,noise_w,x_spec,pst);
-  free_powell_params(par_pow);
 }
 
 void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big)

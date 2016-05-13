@@ -5,8 +5,8 @@ ADD_OMP= yes
 ADD_MPI= yes
 DEBUG_VERSION= yes
 DEBUG_SINGLEPIX= yes
-LIB_GSL= -L/home/damonge/lib
-INC_GSL= -I/home/damonge/include
+LIB_GSL= -L/users/damonge/lib
+INC_GSL= -I/users/damonge/include
 LIB_HP=
 INC_HP=
 LIB_FITS=
@@ -41,10 +41,10 @@ BFOREO= src/bfore.o
 MAINO= src/main.o
 OBJ= $(COMMONO) $(HEO) $(RNGO) $(POWELLO) $(BFOREO) $(MAINO)
 
-EXEC= BFoRe
+EXEC= BFoRe_db
 all: $(EXEC)
 
-BFoRe : $(OBJ)
+BFoRe_db : $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) $(LIBS) -o $@
 
 clean :

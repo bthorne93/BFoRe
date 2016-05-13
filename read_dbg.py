@@ -34,7 +34,7 @@ def read_debug(fname) :
         plt.plot(chain[nb_samples:,i]); plt.xlabel('#sample',fontsize=16); plt.ylabel('$\\beta_s$',fontsize=16); plt.show()
         for j in np.arange(n_spec_vary-i-1)+i+1 :
             plt.plot(chain[:nb_samples,i],chain[:nb_samples,j],'r-',markersize=0.1);
-            plt.plot(chain[nb_samples:,i],chain[nb_samples:,j],'b.',markersize=0.1); plt.show()
+            plt.plot(chain[nb_samples:,i],chain[nb_samples:,j],'b.',markersize=1); plt.show()
 
     f.close()
 

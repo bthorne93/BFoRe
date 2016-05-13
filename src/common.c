@@ -322,12 +322,6 @@ ParamBFoRe *read_params(char *fname)
       par->nu0_s=atof(s2);
     else if(!strcmp(s1,"nu0_dust="))
       par->nu0_d=atof(s2);
-    else if(!strcmp(s1,"beta_s_step="))
-      par->beta_s_step=atof(s2);
-    else if(!strcmp(s1,"beta_d_step="))
-      par->beta_d_step=atof(s2);
-    else if(!strcmp(s1,"temp_d_step="))
-      par->temp_d_step=atof(s2);
     else if(!strcmp(s1,"nside="))
       par->nside=atoi(s2); 
     else if(!strcmp(s1,"nside_spec="))
@@ -336,14 +330,20 @@ ParamBFoRe *read_params(char *fname)
       par->seed=atoi(s2);
     else if(!strcmp(s1,"n_samples="))
       par->n_samples=atoi(s2);
-    else if(!strcmp(s1,"n_output_rate="))
-      par->n_output_rate=atoi(s2);
     else if(!strcmp(s1,"burning_fraction="))
       par->frac_samples_burn=atof(s2);
     else if(!strcmp(s1,"n_update_covar="))
       par->n_update_covar=atoi(s2);
     else if(!strcmp(s1,"n_spec_resample="))
       par->n_spec_resample=atoi(s2);
+    else if(!strcmp(s1,"n_output_rate="))
+      par->n_output_rate=atoi(s2);
+    else if(!strcmp(s1,"beta_s_step="))
+      par->beta_s_step=atof(s2);
+    else if(!strcmp(s1,"beta_d_step="))
+      par->beta_d_step=atof(s2);
+    else if(!strcmp(s1,"temp_d_step="))
+      par->temp_d_step=atof(s2);
 #ifdef _DEBUG
     else if(!strcmp(s1,"debug_pixel="))
       par->dbg_ipix=atoi(s2);
@@ -510,97 +510,101 @@ ParamBFoRe *read_params(char *fname)
   if(NodeThis==0)
     printf("Reading prior maps\n");
   //beta_s T,P
-  map_dum=he_read_healpix_map(par->input_beta_s_t_prior,&nside_dum,0);
-  if(nside_dum!=par->nside_spec)
-    report_error(1,"Read wrong nside\n");
-  he_ring2nest_inplace(map_dum,nside_dum);
-  for(ii=0;ii<par->n_pix_spec;ii++)
-    par->map_prior_centres[par->index_beta_s_t+par->n_param_max*ii]=map_dum[ii];
-  free(map_dum);
-  map_dum=he_read_healpix_map(par->input_beta_s_t_prior,&nside_dum,1);
-  if(nside_dum!=par->nside_spec)
-    report_error(1,"Read wrong nside\n");
-  he_ring2nest_inplace(map_dum,nside_dum);
-  for(ii=0;ii<par->n_pix_spec;ii++)
-    par->map_prior_widths[par->index_beta_s_t+par->n_param_max*ii]=map_dum[ii];
-  free(map_dum);
-  if(par->flag_include_polarization && par->flag_independent_polarization) {
-    map_dum=he_read_healpix_map(par->input_beta_s_p_prior,&nside_dum,0);
+  if(par->flag_include_synchrotron) {
+    map_dum=he_read_healpix_map(par->input_beta_s_t_prior,&nside_dum,0);
     if(nside_dum!=par->nside_spec)
       report_error(1,"Read wrong nside\n");
     he_ring2nest_inplace(map_dum,nside_dum);
     for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_centres[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
+      par->map_prior_centres[par->index_beta_s_t+par->n_param_max*ii]=map_dum[ii];
     free(map_dum);
-    map_dum=he_read_healpix_map(par->input_beta_s_p_prior,&nside_dum,1);
+    map_dum=he_read_healpix_map(par->input_beta_s_t_prior,&nside_dum,1);
     if(nside_dum!=par->nside_spec)
       report_error(1,"Read wrong nside\n");
     he_ring2nest_inplace(map_dum,nside_dum);
     for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_widths[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
+      par->map_prior_widths[par->index_beta_s_t+par->n_param_max*ii]=map_dum[ii];
     free(map_dum);
+    if(par->flag_include_polarization && par->flag_independent_polarization) {
+      map_dum=he_read_healpix_map(par->input_beta_s_p_prior,&nside_dum,0);
+      if(nside_dum!=par->nside_spec)
+	report_error(1,"Read wrong nside\n");
+      he_ring2nest_inplace(map_dum,nside_dum);
+      for(ii=0;ii<par->n_pix_spec;ii++)
+	par->map_prior_centres[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
+      free(map_dum);
+      map_dum=he_read_healpix_map(par->input_beta_s_p_prior,&nside_dum,1);
+      if(nside_dum!=par->nside_spec)
+	report_error(1,"Read wrong nside\n");
+      he_ring2nest_inplace(map_dum,nside_dum);
+      for(ii=0;ii<par->n_pix_spec;ii++)
+	par->map_prior_widths[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
+      free(map_dum);
+    }
   }
-  //beta_d T,P
-  map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,0);
-  if(nside_dum!=par->nside_spec)
-    report_error(1,"Read wrong nside\n");
-  he_ring2nest_inplace(map_dum,nside_dum);
-  for(ii=0;ii<par->n_pix_spec;ii++)
-    par->map_prior_centres[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
-  free(map_dum);
-  map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,1);
-  if(nside_dum!=par->nside_spec)
-    report_error(1,"Read wrong nside\n");
-  he_ring2nest_inplace(map_dum,nside_dum);
-  for(ii=0;ii<par->n_pix_spec;ii++)
-    par->map_prior_widths[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
-  free(map_dum);
-  if(par->flag_include_polarization && par->flag_independent_polarization) {
-    map_dum=he_read_healpix_map(par->input_beta_d_p_prior,&nside_dum,0);
+  if(par->flag_include_dust) {
+    //beta_d T,P
+    map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,0);
     if(nside_dum!=par->nside_spec)
       report_error(1,"Read wrong nside\n");
     he_ring2nest_inplace(map_dum,nside_dum);
     for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_centres[par->index_beta_d_p+par->n_param_max*ii]=map_dum[ii];
+      par->map_prior_centres[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
     free(map_dum);
-    map_dum=he_read_healpix_map(par->input_beta_d_p_prior,&nside_dum,1);
+    map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,1);
     if(nside_dum!=par->nside_spec)
       report_error(1,"Read wrong nside\n");
     he_ring2nest_inplace(map_dum,nside_dum);
     for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_widths[par->index_beta_d_p+par->n_param_max*ii]=map_dum[ii];
+      par->map_prior_widths[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
     free(map_dum);
-  }
-  //temp_d T,P
-  map_dum=he_read_healpix_map(par->input_temp_d_t_prior,&nside_dum,0);
-  if(nside_dum!=par->nside_spec)
-    report_error(1,"Read wrong nside\n");
-  he_ring2nest_inplace(map_dum,nside_dum);
-  for(ii=0;ii<par->n_pix_spec;ii++)
-    par->map_prior_centres[par->index_temp_d_t+par->n_param_max*ii]=map_dum[ii];
-  free(map_dum);
-  map_dum=he_read_healpix_map(par->input_temp_d_t_prior,&nside_dum,1);
-  if(nside_dum!=par->nside_spec)
-    report_error(1,"Read wrong nside\n");
-  he_ring2nest_inplace(map_dum,nside_dum);
-  for(ii=0;ii<par->n_pix_spec;ii++)
-    par->map_prior_widths[par->index_temp_d_t+par->n_param_max*ii]=map_dum[ii];
-  free(map_dum);
-  if(par->flag_include_polarization && par->flag_independent_polarization) {
-    map_dum=he_read_healpix_map(par->input_temp_d_p_prior,&nside_dum,0);
+    if(par->flag_include_polarization && par->flag_independent_polarization) {
+      map_dum=he_read_healpix_map(par->input_beta_d_p_prior,&nside_dum,0);
+      if(nside_dum!=par->nside_spec)
+	report_error(1,"Read wrong nside\n");
+      he_ring2nest_inplace(map_dum,nside_dum);
+      for(ii=0;ii<par->n_pix_spec;ii++)
+	par->map_prior_centres[par->index_beta_d_p+par->n_param_max*ii]=map_dum[ii];
+      free(map_dum);
+      map_dum=he_read_healpix_map(par->input_beta_d_p_prior,&nside_dum,1);
+      if(nside_dum!=par->nside_spec)
+	report_error(1,"Read wrong nside\n");
+      he_ring2nest_inplace(map_dum,nside_dum);
+      for(ii=0;ii<par->n_pix_spec;ii++)
+	par->map_prior_widths[par->index_beta_d_p+par->n_param_max*ii]=map_dum[ii];
+      free(map_dum);
+    }
+    //temp_d T,P
+    map_dum=he_read_healpix_map(par->input_temp_d_t_prior,&nside_dum,0);
     if(nside_dum!=par->nside_spec)
       report_error(1,"Read wrong nside\n");
     he_ring2nest_inplace(map_dum,nside_dum);
     for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_centres[par->index_temp_d_p+par->n_param_max*ii]=map_dum[ii];
+      par->map_prior_centres[par->index_temp_d_t+par->n_param_max*ii]=map_dum[ii];
     free(map_dum);
-    map_dum=he_read_healpix_map(par->input_temp_d_p_prior,&nside_dum,1);
+    map_dum=he_read_healpix_map(par->input_temp_d_t_prior,&nside_dum,1);
     if(nside_dum!=par->nside_spec)
       report_error(1,"Read wrong nside\n");
     he_ring2nest_inplace(map_dum,nside_dum);
     for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_widths[par->index_temp_d_p+par->n_param_max*ii]=map_dum[ii];
+      par->map_prior_widths[par->index_temp_d_t+par->n_param_max*ii]=map_dum[ii];
     free(map_dum);
+    if(par->flag_include_polarization && par->flag_independent_polarization) {
+      map_dum=he_read_healpix_map(par->input_temp_d_p_prior,&nside_dum,0);
+      if(nside_dum!=par->nside_spec)
+	report_error(1,"Read wrong nside\n");
+      he_ring2nest_inplace(map_dum,nside_dum);
+      for(ii=0;ii<par->n_pix_spec;ii++)
+	par->map_prior_centres[par->index_temp_d_p+par->n_param_max*ii]=map_dum[ii];
+      free(map_dum);
+      map_dum=he_read_healpix_map(par->input_temp_d_p_prior,&nside_dum,1);
+      if(nside_dum!=par->nside_spec)
+	report_error(1,"Read wrong nside\n");
+      he_ring2nest_inplace(map_dum,nside_dum);
+      for(ii=0;ii<par->n_pix_spec;ii++)
+	par->map_prior_widths[par->index_temp_d_p+par->n_param_max*ii]=map_dum[ii];
+      free(map_dum);
+    }
   }
 
   int npix_leftover,npix_pernode;
