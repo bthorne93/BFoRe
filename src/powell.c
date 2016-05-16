@@ -1,16 +1,5 @@
 #include "common.h"
 
-#define TINY 1.0E-25
-#define ZEPS 1.0E-10
-#define GLIMIT 100.0
-#define GOLD 1.618034
-#define CGOLD 0.3819660
-#define LIN_TOL 2.0E-4
-#define LIN_ITMAX 100
-#define SIGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
-#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
-#define SHFT(a,b,c,d) (a)=(b);(b)=(c);(c)=(d);  
-
 static flouble get_powell_1d(PowellParams *par,flouble x)
 {
   int j;

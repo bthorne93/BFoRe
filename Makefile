@@ -3,14 +3,17 @@ MPI_CC= mpicc
 WOPT_DEFAULT= -Wall -O3
 ADD_OMP= yes
 ADD_MPI= yes
-DEBUG_VERSION= yes
-DEBUG_SINGLEPIX= yes
+ADD_NILC= yes
+DEBUG_VERSION= no
+DEBUG_SINGLEPIX= no
 LIB_GSL= -L/users/damonge/lib
 INC_GSL= -I/users/damonge/include
 LIB_HP=
 INC_HP=
 LIB_FITS=
 INC_FITS=
+LIB_SHARP=
+INC_SHARP=
 
 WOPT=$(WOPT_DEFAULT) -DHAVE_INLINE -DGSL_RANGE_CHECK_OFF
 ifeq ($(ADD_OMP),yes)
@@ -29,9 +32,17 @@ ifeq ($(DEBUG_SINGLEPIX),yes)
 endif
 endif
 
-CFLAGS= $(WOPT) -I./src $(INC_GSL) $(INC_HP) $(INC_FITS)
-LIBS= $(LIB_GSL) $(LIB_HP) $(LIB_FITS) $(LIB_SHARP)
+INCS= -I./src $(INC_GSL) $(INC_HP) $(INC_FITS)
+LIBDIRS= $(LIB_GSL) $(LIB_HP) $(LIB_FITS) $(LIB_SHARP)
 LIBS+= -lgsl -lgslcblas -lchealpix -lcfitsio -lm
+ifeq ($(ADD_NILC),yes)
+	WOPT+= -D_WITH_SHT -D_WITH_NEEDLET
+	INCS+= $(INC_SHARP)
+	LIBDIRS+= $(LIB_SHARP)
+	LIBS+= -lsharp -lfftpack -lc_utils
+endif
+CFLAGS= $(WOPT)
+CFLAGS+= $(INCS)
 
 COMMONO= src/common.o
 HEO= src/healpix_extra.o
@@ -45,7 +56,7 @@ EXEC= BFoRe_db
 all: $(EXEC)
 
 BFoRe_db : $(OBJ)
-	$(CC) $(CFLAGS) $(OBJ) $(LIBS) -o $@
+	$(CC) $(CFLAGS) $(OBJ) $(LIBDIRS) $(LIBS) -o $@
 
 clean :
 	rm -f $(EXEC) $(OBJ)

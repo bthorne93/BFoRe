@@ -1,309 +1,6 @@
 #include "common.h"
-#include <fitsio.h>
-#include <chealpix.h>
-#ifdef _WITH_SHT
-#include "sharp_almhelpers.h"
-#include "sharp_geomhelpers.h"
-#include "sharp.h"
 
-#define MAX_SHT 32
-
-long he_nalms(int lmax)
-{
-  return ((lmax+1)*(lmax+2))/2;
-}
-
-long he_indexlm(int l,int m,int lmax)
-{
-  if(m>0)
-    return l+m*lmax-(m*(m-1))/2;
-  else
-    return l;
-}
-
-void he_alm2map(int nside,int lmax,int ntrans,flouble **maps,fcomplex **alms)
-{
-  int nbatches,nodd,itrans;
-  double time;
-  sharp_alm_info *alm_info;
-  sharp_geom_info *geom_info;
-
-  sharp_make_triangular_alm_info(lmax,lmax,1,&alm_info);
-  sharp_make_weighted_healpix_geom_info(nside,1,NULL,&geom_info);
-  
-  nbatches=ntrans/MAX_SHT;
-  nodd=ntrans%MAX_SHT;
-
-  for(itrans=0;itrans<nbatches;itrans++) {
-    time=0;
-#ifdef _SPREC
-    sharp_execute(SHARP_ALM2MAP,0,&(alms[itrans*MAX_SHT]),
-                  &(maps[itrans*MAX_SHT]),geom_info,
-                  alm_info,MAX_SHT,0,&time,NULL);
-#else //_SPREC
-    sharp_execute(SHARP_ALM2MAP,0,&(alms[itrans*MAX_SHT]),
-                  &(maps[itrans*MAX_SHT]),geom_info,
-                  alm_info,MAX_SHT,SHARP_DP,&time,NULL);
-#endif //_SPREC
-    //  printf("  Took %lf s according to libsharp\n",time);
-  }
-  if(nodd>0) {
-    time=0;
-#ifdef _SPREC
-    sharp_execute(SHARP_ALM2MAP,0,&(alms[nbatches*MAX_SHT]),
-		  &(maps[nbatches*MAX_SHT]),geom_info,
-		  alm_info,nodd,0,&time,NULL);
-#else //_SPREC
-    sharp_execute(SHARP_ALM2MAP,0,&(alms[nbatches*MAX_SHT]),
-		  &(maps[nbatches*MAX_SHT]),geom_info,
-		  alm_info,nodd,SHARP_DP,&time,NULL);
-#endif //_SPREC
-    //  printf("  Took %lf s according to libsharp\n",time);
-  }
-
-  sharp_destroy_geom_info(geom_info);
-  sharp_destroy_alm_info(alm_info);
-}
-
-void he_map2alm(int nside,int lmax,int ntrans,flouble **maps,fcomplex **alms)
-{
-  int nbatches,nodd,itrans;
-  double time;
-  sharp_alm_info *alm_info;
-  sharp_geom_info *geom_info;
-
-  sharp_make_triangular_alm_info(lmax,lmax,1,&alm_info);
-  sharp_make_weighted_healpix_geom_info(nside,1,NULL,&geom_info);
-
-  nbatches=ntrans/MAX_SHT;
-  nodd=ntrans%MAX_SHT;
-
-  for(itrans=0;itrans<nbatches;itrans++) {
-    time=0;
-#ifdef _SPREC
-    sharp_execute(SHARP_MAP2ALM,0,&(alms[itrans*MAX_SHT]),
-                  &(maps[itrans*MAX_SHT]),geom_info,
-                  alm_info,MAX_SHT,0,&time,NULL);
-#else //_SPREC
-    sharp_execute(SHARP_MAP2ALM,0,&(alms[itrans*MAX_SHT]),
-                  &(maps[itrans*MAX_SHT]),geom_info,
-                  alm_info,MAX_SHT,SHARP_DP,&time,NULL);
-#endif //_SPREC
-    //  printf("  Took %lf s according to libsharp\n",time);
-  }
-  if(nodd>0) {
-    time=0;
-#ifdef _SPREC
-    sharp_execute(SHARP_MAP2ALM,0,&(alms[nbatches*MAX_SHT]),
-		  &(maps[nbatches*MAX_SHT]),geom_info,
-		  alm_info,nodd,0,&time,NULL);
-#else //_SPREC
-    sharp_execute(SHARP_MAP2ALM,0,&(alms[nbatches*MAX_SHT]),
-		  &(maps[nbatches*MAX_SHT]),geom_info,
-		  alm_info,nodd,SHARP_DP,&time,NULL);
-#endif //_SPREC
-    //  printf("  Took %lf s according to libsharp\n",time);
-  }
-
-  sharp_destroy_geom_info(geom_info);
-  sharp_destroy_alm_info(alm_info);
-}
-
-void he_anafast(flouble **maps_1,flouble **maps_2,
-		int nmaps_1,int nmaps_2,
-		int pol_1,int pol_2,
-		flouble **cls,int nside,int lmax)
-{
-  double time;
-  sharp_alm_info *alm_info;
-  sharp_geom_info *geom_info;
-  fcomplex **alms_1,**alms_2;
-  int i1,index_cl;
-  int lmax_here=3*nside-1;
-
-
-  alms_1=my_malloc(nmaps_1*sizeof(fcomplex *));
-  for(i1=0;i1<nmaps_1;i1++)
-    alms_1[i1]=my_malloc(he_nalms(lmax_here)*sizeof(fcomplex));
-  if(pol_1) {
-    if(nmaps_1!=2)
-      report_error(1,"Must provide 2 maps for polarization\n");
-
-    sharp_make_triangular_alm_info(lmax,lmax,1,&alm_info);
-    sharp_make_weighted_healpix_geom_info(nside,1,NULL,&geom_info);
-
-    /*
-    //Transform T
-    time=0;
-#ifdef _SPREC
-    sharp_execute(SHARP_MAP2ALM,0,&(alms_1[0]),&(maps_1[0]),geom_info,
-		  alm_info,1,0,&time,NULL);
-#else //_SPREC
-    sharp_execute(SHARP_MAP2ALM,0,&(alms_1[0]),&(maps_1[0]),geom_info,
-		  alm_info,1,SHARP_DP,&time,NULL);
-#endif //_SPREC
-    */
-    //Transform Q,U
-#ifdef _SPREC
-    sharp_execute(SHARP_MAP2ALM,2,&(alms_1[0]),&(maps_1[0]),geom_info,
-		  alm_info,1,0,&time,NULL);
-#else //_SPREC
-    sharp_execute(SHARP_MAP2ALM,2,&(alms_1[0]),&(maps_1[0]),geom_info,
-		  alm_info,1,SHARP_DP,&time,NULL);
-#endif //_SPREC
-
-    sharp_destroy_geom_info(geom_info);
-    sharp_destroy_alm_info(alm_info);
-  }
-  else {
-    he_map2alm(nside,lmax,nmaps_1,maps_1,alms_1);
-  }
-
-  if(maps_1==maps_2)
-    alms_2=alms_1;
-  else {
-    alms_2=my_malloc(nmaps_2*sizeof(fcomplex *));
-    for(i1=0;i1<nmaps_2;i1++)
-      alms_2[i1]=my_malloc(he_nalms(lmax_here)*sizeof(fcomplex));
-    if(pol_2) {
-      if(nmaps_2!=2)
-	report_error(1,"Must provide 2 maps for polarization\n");
-      
-      sharp_make_triangular_alm_info(lmax,lmax,1,&alm_info);
-      sharp_make_weighted_healpix_geom_info(nside,1,NULL,&geom_info);
-
-      /*      
-      //Transform T
-      time=0;
-#ifdef _SPREC
-      sharp_execute(SHARP_MAP2ALM,0,&(alms_2[0]),&(maps_2[0]),geom_info,
-		    alm_info,1,0,&time,NULL);
-#else //_SPREC
-      sharp_execute(SHARP_MAP2ALM,0,&(alms_2[0]),&(maps_2[0]),geom_info,
-		    alm_info,1,SHARP_DP,&time,NULL);
-#endif //_SPREC
-      */
-      //Transform Q,U
-#ifdef _SPREC
-      sharp_execute(SHARP_MAP2ALM,2,&(alms_2[0]),&(maps_2[0]),geom_info,
-		    alm_info,1,0,&time,NULL);
-#else //_SPREC
-      sharp_execute(SHARP_MAP2ALM,2,&(alms_2[0]),&(maps_2[0]),geom_info,
-		    alm_info,1,SHARP_DP,&time,NULL);
-#endif //_SPREC
-
-      sharp_destroy_geom_info(geom_info);
-      sharp_destroy_alm_info(alm_info);
-    }
-    else {
-      he_map2alm(nside,lmax,nmaps_2,maps_2,alms_2);
-    }
-  }
-
-  index_cl=0;
-  for(i1=0;i1<nmaps_1;i1++) {
-    int i2;
-    fcomplex *alm1=alms_1[i1];
-    for(i2=0;i2<nmaps_2;i2++) {
-      int l;
-      fcomplex *alm2=alms_2[i2];
-      for(l=0;l<=lmax;l++) {
-	int m;
-	cls[index_cl][l]=creal(alm1[he_indexlm(l,0,lmax)])*creal(alm2[he_indexlm(l,0,lmax)]);
-
-	for(m=1;m<=l;m++) {
-	  long index_lm=he_indexlm(l,m,lmax);
-	  cls[index_cl][l]+=2*(creal(alm1[index_lm])*creal(alm2[index_lm])+
-			       cimag(alm1[index_lm])*cimag(alm2[index_lm]));
-	}
-	cls[index_cl][l]/=(2*l+1.);
-      }
-      index_cl++;
-    }
-  }
-
-  for(i1=0;i1<nmaps_1;i1++)
-    free(alms_1[i1]);
-  free(alms_1);
-  if(alms_1!=alms_2) {
-    for(i1=0;i1<nmaps_2;i1++)
-      free(alms_2[i1]);
-    free(alms_2);
-  }
-}
-
-//Transforms FWHM in arcmin to sigma_G in rad:
-//         pi/(60*180*sqrt(8*log(2))
-#define FWHM2SIGMA 0.00012352884853326381 
-double *he_generate_beam_window(int lmax,double fwhm_amin)
-{
-  long l;
-  double sigma=FWHM2SIGMA*fwhm_amin;
-  double *beam=my_malloc((lmax+1)*sizeof(double));
-
-  for(l=0;l<=lmax;l++)
-    beam[l]=exp(-0.5*l*(l+1)*sigma*sigma);
-  
-  return beam;
-}
-
-void he_alter_alm(int lmax,double fwhm_amin,fcomplex *alms,double *window)
-{
-  double *beam;
-  int mm;
-
-  if(window==NULL) beam=he_generate_beam_window(lmax,fwhm_amin);
-  else beam=window;
-
-  for(mm=0;mm<=lmax;mm++) {
-    int ll;
-    for(ll=mm;ll<=lmax;ll++) {
-      long index=he_indexlm(ll,mm,lmax);
-
-      alms[index]*=beam[ll];
-    }
-  }
-
-  if(window==NULL)
-    free(beam);
-}
-
-/*
-flouble *he_synfast(flouble *cl,int nside,int lmax,unsigned int seed)
-{
-  fcomplex *alms;
-  int lmax_here=lmax;
-  long npix=12*((long)nside)*nside;
-  flouble *map=my_malloc(npix*sizeof(flouble));
-  dam_rng_state *rng=dam_init_rng(seed);
-
-  if(lmax>3*nside-1)
-    lmax_here=3*nside-1;
-  alms=my_malloc(he_nalms(lmax_here)*sizeof(fcomplex));
-
-  int ll;
-  for(ll=0;ll<=lmax_here;ll++) {
-    int mm;
-    double sigma=sqrt(0.5*cl[ll]);
-    double r1,r2;
-    r1=dam_randgauss(rng);
-    alms[he_indexlm(ll,0,lmax_here)]=(fcomplex)(M_SQRT2*sigma*r1);
-
-    for(mm=1;mm<=ll;mm++) {
-      r1=dam_randgauss(rng);
-      r2=dam_randgauss(rng);
-      alms[he_indexlm(ll,mm,lmax_here)]=(fcomplex)(sigma*(r1+I*r2));
-    }
-  }
-  he_alm2map(nside,lmax_here,1,&map,&alms);
-  free(alms);
-  dam_end_rng(rng);
-
-  return map;
-}
-*/
-#endif //_WITH_SHT
-
+//HE_IO
 void he_write_healpix_map(flouble **tmap,int nfields,long nside,char *fname)
 {
   fitsfile *fptr;
@@ -320,7 +17,7 @@ void he_write_healpix_map(flouble **tmap,int nfields,long nside,char *fname)
     tunit[ii]=my_malloc(256);
     sprintf(ttype[ii],"map %d",ii+1);
     sprintf(tform[ii],"1E");
-    sprintf(tunit[ii],"mK");
+    sprintf(tunit[ii],"uK");
   }
 
   fits_create_file(&fptr,fname,&status);
@@ -339,7 +36,7 @@ void he_write_healpix_map(flouble **tmap,int nfields,long nside,char *fname)
 		     "G = Galactic, E = ecliptic, C = celestial = equatorial",
 		     &status);
   for(ii=0;ii<nfields;ii++) {
-    lint ip;
+    long ip;
     for(ip=0;ip<nside2npix(nside);ip++)
       map_dum[ip]=(float)(tmap[ii][ip]);
     fits_write_col(fptr,TFLOAT,ii+1,1,1,nside2npix(nside),map_dum,&status);
@@ -376,7 +73,7 @@ flouble *he_read_healpix_map(char *fname,long *nside,int nfield)
   fits_read_key_lng(fptr,"NSIDE",nside,NULL,&status);
   npix=12*(*nside)*(*nside);
   if(npix%naxis[1]!=0) {
-    fprintf(stderr,"CRIME: WTFFF\n");
+    fprintf(stderr,"WTFFF\n");
     exit(1);
   }
 
@@ -413,6 +110,8 @@ flouble *he_read_healpix_map(char *fname,long *nside,int nfield)
   return map_ring;
 }
 
+
+//HE_PIX
 int he_ring_num(long nside,double z)
 {
   //Returns ring index for normalized height z
@@ -473,8 +172,7 @@ long *he_query_strip(long nside,double theta1,double theta2,
   if((theta2<=theta1)||
      (theta1<0)||(theta1>M_PI)||
      (theta2<0)||(theta2>M_PI)) {
-    fprintf(stderr,"CRIME: wrong strip boundaries\n");
-    exit(1);
+    report_error(1,"wrong strip boundaries\n");
   }
 
   irmin=he_ring_num(nside,z_hi);
@@ -622,3 +320,477 @@ void he_udgrade(flouble *map_in,long nside_in,
     }
   }
 }
+
+
+#ifdef _WITH_SHT
+//HE_SHT
+long he_nalms(int lmax)
+{
+  return ((lmax+1)*(lmax+2))/2;
+}
+
+long he_indexlm(int l,int m,int lmax)
+{
+  if(m>0)
+    return l+m*lmax-(m*(m-1))/2;
+  else
+    return l;
+}
+
+static void sht_wrapper(int spin,int lmax,int nside,int ntrans,flouble **maps,fcomplex **alms,int alm2map)
+{
+  double time=0;
+  sharp_alm_info *alm_info;
+  sharp_geom_info *geom_info;
+
+  sharp_make_triangular_alm_info(lmax,lmax,1,&alm_info);
+  sharp_make_weighted_healpix_geom_info(nside,1,NULL,&geom_info);
+  sharp_execute(alm2map,spin,alms,maps,geom_info,alm_info,ntrans,SHT_TYPE,&time,NULL);
+  sharp_destroy_geom_info(geom_info);
+  sharp_destroy_alm_info(alm_info);
+  //  printf("  Took %lf s according to libsharp\n",time);
+}
+
+void he_alm2map(int nside,int lmax,int ntrans,flouble **maps,fcomplex **alms)
+{
+  int nbatches,nodd,itrans;
+  nbatches=ntrans/HE_MAX_SHT;
+  nodd=ntrans%HE_MAX_SHT;
+
+  for(itrans=0;itrans<nbatches;itrans++)
+    sht_wrapper(0,lmax,nside,HE_MAX_SHT,&(maps[itrans*HE_MAX_SHT]),&(alms[itrans*HE_MAX_SHT]),SHARP_ALM2MAP);
+  if(nodd>0)
+    sht_wrapper(0,lmax,nside,nodd,&(maps[nbatches*HE_MAX_SHT]),&(alms[nbatches*HE_MAX_SHT]),SHARP_ALM2MAP);
+}
+
+void he_map2alm(int nside,int lmax,int ntrans,flouble **maps,fcomplex **alms)
+{
+  int nbatches,nodd,itrans;
+  nbatches=ntrans/HE_MAX_SHT;
+  nodd=ntrans%HE_MAX_SHT;
+
+  for(itrans=0;itrans<nbatches;itrans++)
+    sht_wrapper(0,lmax,nside,HE_MAX_SHT,&(maps[itrans*HE_MAX_SHT]),&(alms[itrans*HE_MAX_SHT]),SHARP_MAP2ALM);
+  if(nodd>0)
+    sht_wrapper(0,lmax,nside,nodd,&(maps[nbatches*HE_MAX_SHT]),&(alms[nbatches*HE_MAX_SHT]),SHARP_MAP2ALM);
+}
+
+void he_alm2cl(fcomplex **alms_1,fcomplex **alms_2,
+	       int nmaps_1,int nmaps_2,
+	       int pol_1,int pol_2,
+	       flouble **cls,int lmax)
+{
+  int i1,index_cl;
+
+  index_cl=0;
+  for(i1=0;i1<nmaps_1;i1++) {
+    int i2;
+    fcomplex *alm1=alms_1[i1];
+    for(i2=0;i2<nmaps_2;i2++) {
+      int l;
+      fcomplex *alm2=alms_2[i2];
+      for(l=0;l<=lmax;l++) {
+	int m;
+	cls[index_cl][l]=creal(alm1[he_indexlm(l,0,lmax)])*creal(alm2[he_indexlm(l,0,lmax)]);
+
+	for(m=1;m<=l;m++) {
+	  long index_lm=he_indexlm(l,m,lmax);
+	  cls[index_cl][l]+=2*(creal(alm1[index_lm])*creal(alm2[index_lm])+
+			       cimag(alm1[index_lm])*cimag(alm2[index_lm]));
+	}
+	cls[index_cl][l]/=(2*l+1.);
+      }
+      index_cl++;
+    }
+  }
+}
+
+void he_anafast(flouble **maps_1,flouble **maps_2,
+		int nmaps_1,int nmaps_2,
+		int pol_1,int pol_2,
+		flouble **cls,int nside,int lmax)
+{
+  double time;
+  fcomplex **alms_1,**alms_2;
+  int i1,spin,lmax_here=3*nside-1;
+
+  alms_1=my_malloc(nmaps_1*sizeof(fcomplex *));
+  for(i1=0;i1<nmaps_1;i1++)
+    alms_1[i1]=my_malloc(he_nalms(lmax_here)*sizeof(fcomplex));
+  if(pol_1) {
+    if(nmaps_1!=2)
+      report_error(1,"Must provide 2 maps for polarization\n");
+    spin=2;
+  }
+  else 
+    spin=0;
+  sht_wrapper(spin,lmax,nside,1,maps_1,alms_1,SHARP_MAP2ALM);
+
+  if(maps_1==maps_2)
+    alms_2=alms_1;
+  else {
+    alms_2=my_malloc(nmaps_2*sizeof(fcomplex *));
+    for(i1=0;i1<nmaps_2;i1++)
+      alms_2[i1]=my_malloc(he_nalms(lmax_here)*sizeof(fcomplex));
+    if(pol_2) {
+      if(nmaps_2!=2)
+	report_error(1,"Must provide 2 maps for polarization\n");
+      
+      spin=2;
+    }
+    else 
+      spin=0;
+    sht_wrapper(spin,lmax,nside,1,maps_2,alms_2,SHARP_MAP2ALM);
+  }
+
+  he_alm2cl(alms_1,alms_2,nmaps_1,nmaps_2,pol_1,pol_2,cls,lmax);
+
+  for(i1=0;i1<nmaps_1;i1++)
+    free(alms_1[i1]);
+  free(alms_1);
+  if(alms_1!=alms_2) {
+    for(i1=0;i1<nmaps_2;i1++)
+      free(alms_2[i1]);
+    free(alms_2);
+  }
+}
+
+flouble *he_generate_beam_window(int lmax,flouble fwhm_amin)
+{
+  long l;
+  flouble sigma=HE_FWHM2SIGMA*fwhm_amin;
+  flouble *beam=my_malloc((lmax+1)*sizeof(flouble));
+
+  for(l=0;l<=lmax;l++)
+    beam[l]=exp(-0.5*l*(l+1)*sigma*sigma);
+  
+  return beam;
+}
+
+void he_alter_alm(int lmax,flouble fwhm_amin,fcomplex *alm_in,
+		  fcomplex *alm_out,flouble *window)
+{
+  flouble *beam;
+  int mm;
+
+  if(window==NULL) beam=he_generate_beam_window(lmax,fwhm_amin);
+  else beam=window;
+
+  for(mm=0;mm<=lmax;mm++) {
+    int ll;
+    for(ll=mm;ll<=lmax;ll++) {
+      long index=he_indexlm(ll,mm,lmax);
+
+      alm_out[index]=alm_in[index]*beam[ll];
+    }
+  }
+
+  if(window==NULL)
+    free(beam);
+}
+
+flouble *he_synfast(flouble *cl,int nside,int lmax,unsigned int seed)
+{
+  fcomplex *alms;
+  int lmax_here=lmax;
+  long npix=12*((long)nside)*nside;
+  flouble *map=my_malloc(npix*sizeof(flouble));
+  Rng *rng=init_rng(seed);
+
+  if(lmax>3*nside-1)
+    lmax_here=3*nside-1;
+  alms=my_malloc(he_nalms(lmax_here)*sizeof(fcomplex));
+
+  int ll;
+  for(ll=0;ll<=lmax_here;ll++) {
+    int mm;
+    flouble sigma=sqrt(0.5*cl[ll]);
+    flouble r1,r2;
+    r1=rand_gauss(rng);
+    alms[he_indexlm(ll,0,lmax_here)]=(fcomplex)(M_SQRT2*sigma*r1);
+
+    for(mm=1;mm<=ll;mm++) {
+      r1=rand_gauss(rng);
+      r2=rand_gauss(rng);
+      alms[he_indexlm(ll,mm,lmax_here)]=(fcomplex)(sigma*(r1+I*r2));
+    }
+  }
+  he_alm2map(nside,lmax_here,1,&map,&alms);
+  free(alms);
+  end_rng(rng);
+
+  return map;
+}
+
+
+#ifdef _WITH_NEEDLET
+//HE_NT
+static double func_fx(double x,void *pars)
+{
+  return exp(-1./(1.-x*x));
+}
+
+static double func_psix(double x,gsl_integration_workspace *w,const gsl_function *f)
+{
+  double result,eresult;
+  gsl_integration_qag(f,-1,x,0,HE_NL_INTPREC,1000,GSL_INTEG_GAUSS61,
+		      w,&result,&eresult);
+
+  return result*HE_NORM_FT;
+}
+
+static double func_phix(double x,double invB,
+			gsl_integration_workspace *w,const gsl_function *f)
+{
+  if(x<0)
+    report_error(1,"Something went wrong");
+  else if(x<=invB)
+    return 1.;
+  else if(x<=1)
+    return func_psix(1-2.*(x-invB)/(1-invB),w,f);
+  else
+    return 0.;
+
+  return -1.;
+}
+
+void he_nt_end(HE_nt_param *par)
+{
+  int j;
+
+  gsl_spline_free(par->b_spline);
+  gsl_interp_accel_free(par->b_intacc);
+  free(par->nside_arr);
+  free(par->lmax_arr);
+  for(j=0;j<par->nj;j++)
+    free(par->b_arr[j]);
+  free(par->b_arr);
+  free(par);
+}
+
+HE_nt_param *he_nt_init(flouble b_nt,int nside0)
+{
+  HE_nt_param *par=my_malloc(sizeof(HE_nt_param));
+  par->b=b_nt;
+  par->inv_b=1./b_nt;
+  par->b_spline=gsl_spline_alloc(gsl_interp_cspline,HE_NBAND_NX);
+  par->b_intacc=gsl_interp_accel_alloc();
+  par->nside0=nside0;
+
+  int ii;
+  gsl_function F;
+  gsl_integration_workspace *w=gsl_integration_workspace_alloc(1000);
+  double *xarr=my_malloc(HE_NBAND_NX*sizeof(double));
+  double *barr=my_malloc(HE_NBAND_NX*sizeof(double));
+  F.function=&func_fx;
+  F.params=NULL;
+  for(ii=0;ii<HE_NBAND_NX;ii++) {
+    xarr[ii]=pow(b_nt,-1.+2.*(ii+0.)/(HE_NBAND_NX-1));
+    barr[ii]=sqrt(func_phix(xarr[ii]/b_nt,1./b_nt,w,&F)-
+		  func_phix(xarr[ii],1./b_nt,w,&F));
+  }
+  gsl_spline_init(par->b_spline,xarr,barr,HE_NBAND_NX);
+  gsl_integration_workspace_free(w);
+  free(xarr);
+  free(barr);
+
+  double lmax=3*nside0-1;
+  double djmax=log(lmax)/log(b_nt);
+  int jmax=(int)(djmax)+1;
+  par->nj=jmax+1;
+  par->nside_arr=my_malloc(par->nj*sizeof(int));
+  par->lmax_arr=my_malloc(par->nj*sizeof(int));
+  for(ii=0;ii<par->nj;ii++) {
+    double dlmx=pow(par->b,ii+1);
+    double dlmn=pow(par->b,ii-1);
+    int lmx=(int)(dlmx)+1;
+    int ns=pow(2,(int)(log((double)lmx)/log(2.))+1);
+    par->nside_arr[ii]=MAX((MIN(ns,par->nside0)),HE_NT_NSIDE_MIN);
+    par->lmax_arr[ii]=3*par->nside_arr[ii]-1;
+  }
+
+  par->b_arr=my_malloc(par->nj*sizeof(flouble *));
+  for(ii=0;ii<par->nj;ii++) {
+    par->b_arr[ii]=my_calloc(3*nside0,sizeof(flouble));
+    he_nt_get_window(par,ii,par->b_arr[ii]);
+  }
+
+  int lmx0=(int)(par->b);
+  for(ii=0;ii<=lmx0;ii++) {
+    flouble b1=par->b_arr[0][ii];
+    flouble b2=par->b_arr[1][ii];
+    flouble h_here=b1*b1+b2*b2;
+    if(h_here<1)
+      par->b_arr[0][ii]=sqrt(1-b2*b2);
+  }
+
+  return par;
+}
+
+flouble ***he_alloc_needlet(HE_nt_param *par,int pol)
+{
+  int ii,nmaps;
+  flouble ***nt=my_malloc(par->nj*sizeof(flouble **));
+  if(pol)
+    nmaps=2;
+  else
+    nmaps=1;
+
+  for(ii=0;ii<par->nj;ii++) {
+    int imap;
+    long ns=par->nside_arr[ii];
+
+    nt[ii]=my_malloc(nmaps*sizeof(flouble *));
+    for(imap=0;imap<nmaps;imap++)
+      nt[ii][imap]=my_malloc(12*ns*ns*sizeof(flouble));
+  }
+
+  return nt;
+}
+
+void he_nt_get_window(HE_nt_param *par,int j,flouble *b)
+{
+  int l;
+  int lmx=par->lmax_arr[j];
+  flouble bfac=1./pow(par->b,j);
+  
+  for(l=0;l<=lmx;l++) {
+    double x=(double)l*bfac;
+    if((x<par->inv_b)||(x>par->b))
+      b[l]=0;
+    else
+      b[l]=gsl_spline_eval(par->b_spline,x,par->b_intacc);
+  }
+}
+
+fcomplex **he_needlet2map(HE_nt_param *par,flouble **map,int pol,flouble ***nt,int return_alm)
+{
+  int j,nmaps,spin;
+  fcomplex **alm,**alm_dum;
+  int l_max=3*par->nside0-1;
+  long n_alms=he_nalms(l_max);
+
+  //Figure out spin
+  if(pol) {
+    nmaps=2;
+    spin=2;
+  }
+  else {
+    nmaps=1;
+    spin=0;
+  }
+
+  //Allocate alms
+  alm=my_malloc(nmaps*sizeof(fcomplex *));
+  alm_dum=my_malloc(nmaps*sizeof(fcomplex *));
+  for(j=0;j<nmaps;j++) {
+    alm[j]=my_calloc(n_alms,sizeof(fcomplex));
+    alm_dum[j]=my_malloc(n_alms*sizeof(fcomplex));
+  }
+
+  //Loop over scales
+  for(j=0;j<par->nj;j++) {
+    int mm;
+    int lmx=par->lmax_arr[j];
+    int imap;
+
+    //Compute alm's for j-th needlet
+    sht_wrapper(spin,par->lmax_arr[j],par->nside_arr[j],1,nt[j],alm_dum,SHARP_MAP2ALM);
+
+    //Loop over spin components
+    for(imap=0;imap<nmaps;imap++) {
+      //Multiply by window and add to total alm
+      for(mm=0;mm<=lmx;mm++) {
+	int ll;
+	for(ll=mm;ll<=lmx;ll++) {
+	  long index0=he_indexlm(ll,mm,l_max);
+	  long index=he_indexlm(ll,mm,lmx);
+	  alm[imap][index0]+=par->b_arr[j][ll]*alm_dum[imap][index];
+	}
+      }
+    }
+  }
+
+  //Transform total alm back to map
+  sht_wrapper(spin,l_max,par->nside0,1,map,alm,SHARP_MAP2ALM);
+
+  if(!return_alm) {
+    for(j=0;j<nmaps;j++)
+      free(alm[j]);
+    free(alm);
+    alm=NULL;
+  }
+  for(j=0;j<nmaps;j++)
+    free(alm_dum[j]);
+  free(alm_dum);
+
+  return alm;
+}
+
+fcomplex **he_map2needlet(HE_nt_param *par,flouble **map,int pol,flouble ***nt,int return_alm)
+{
+  int j,nmaps,spin;
+  fcomplex **alm,**alm_dum;
+  int l_max=3*par->nside0-1;
+  long n_alms=he_nalms(l_max);
+
+  //Figure out spin
+  if(pol) {
+    nmaps=2;
+    spin=2;
+  }
+  else {
+    nmaps=1;
+    spin=0;
+  }
+
+  //Allocate alms
+  alm=my_malloc(nmaps*sizeof(fcomplex *));
+  alm_dum=my_malloc(nmaps*sizeof(fcomplex *));
+  for(j=0;j<nmaps;j++) {
+    alm[j]=my_malloc(n_alms*sizeof(fcomplex));
+    alm_dum[j]=my_malloc(n_alms*sizeof(fcomplex));
+  }
+
+  //SHT
+  sht_wrapper(spin,l_max,par->nside0,1,map,alm,SHARP_MAP2ALM);
+
+  //Iterate over scales
+  for(j=0;j<par->nj;j++) {
+    int mm,imap;
+    int lmx=par->lmax_arr[j];
+
+    //Loop over spin components
+    for(imap=0;imap<nmaps;imap++) {
+      //Set alms and window to zero
+      memset(alm_dum[imap],0,n_alms*sizeof(fcomplex));
+
+      //Multiply alms by window function
+      for(mm=0;mm<=lmx;mm++) {
+	int ll;
+	for(ll=mm;ll<=lmx;ll++) {
+	  long index0=he_indexlm(ll,mm,l_max);
+	  long index=he_indexlm(ll,mm,lmx);
+	  alm_dum[imap][index]=par->b_arr[j][ll]*alm[imap][index0];
+	}
+      }
+    }
+
+    //SHT^-1
+    sht_wrapper(spin,par->lmax_arr[j],par->nside_arr[j],1,nt[j],alm_dum,SHARP_ALM2MAP);
+  }
+
+  if(!return_alm) {
+    for(j=0;j<nmaps;j++)
+      free(alm[j]);
+    free(alm);
+    alm=NULL;
+  }
+  for(j=0;j<nmaps;j++)
+    free(alm_dum[j]);
+  free(alm_dum);
+  
+  return alm;
+}
+#endif //_WITH_NEEDLET
+#endif //_WITH_SHT

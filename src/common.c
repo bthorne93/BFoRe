@@ -36,7 +36,7 @@ void dbg_printf(int do_print,char *fmt,...)
   if(do_print) {
     va_list args;
     char msg[256];
-    
+
     va_start(args,fmt);
     vsprintf(msg,fmt,args);
     va_end(args);
@@ -100,6 +100,25 @@ static ParamBFoRe *param_bfore_new(void)
   sprintf(par->input_data_prefix,"default");
   par->maps_data=NULL;
 
+  sprintf(par->input_noise_prefix,"default");
+  par->maps_noise_weight=NULL;
+
+  sprintf(par->output_prefix,"default");
+
+  sprintf(par->fname_nulist,"default");
+  par->n_nu=-1;
+  par->freqs=NULL;
+  
+  par->flag_include_polarization=0;
+  par->n_pol=1;
+
+  par->dbg_ipix=0;
+  par->dbg_extra=NULL;
+
+  par->ipix_0=-1;
+  par->ipix_f=-1;
+
+  par->do_bayes=1;
   sprintf(par->input_beta_s_t_prior,"default");
   sprintf(par->input_beta_s_p_prior,"default");
   sprintf(par->input_beta_d_t_prior,"default");
@@ -109,23 +128,12 @@ static ParamBFoRe *param_bfore_new(void)
   par->map_prior_centres=NULL;
   par->map_prior_widths=NULL;
 
-  sprintf(par->input_noise_prefix,"default");
-  par->maps_noise_weight=NULL;
-
-  sprintf(par->output_prefix,"default");
   par->flag_write_samples=0;
   par->map_components_mean=NULL;
   par->map_components_covar=NULL;
   par->map_indices_mean=NULL;
   par->map_indices_covar=NULL;
   par->map_chi2=NULL;
-
-  sprintf(par->fname_nulist,"default");
-  par->n_nu=-1;
-  par->freqs=NULL;
-  
-  par->flag_include_polarization=0;
-  par->n_pol=1;
 
   par->flag_include_cmb=0;
   par->flag_include_synchrotron=0;
@@ -164,9 +172,6 @@ static ParamBFoRe *param_bfore_new(void)
   par->n_update_covar=1000;
   par->n_samples_burn=20000;
   par->n_spec_resample=1;
-
-  par->dbg_ipix=0;
-  par->dbg_extra=NULL;
   
   return par;
 }
@@ -183,73 +188,79 @@ static void param_bfore_print(ParamBFoRe *par)
   printf(" - Input maps: %s\n",par->input_data_prefix);
   printf(" - Input noise: %s\n",par->input_noise_prefix);
   printf(" - Output prefix: %s\n",par->output_prefix);
-  if(par->flag_use_marginal)
-    printf(" - Will use marginal distribution for indices\n");
-  else
-    printf(" - Will sample amplitudes as well as indices\n");
-  if(par->flag_write_samples)
-    printf(" - Will output %d individual samples\n",n_samples_output);
-  printf(" - Frequency list: %s\n",par->fname_nulist);
   if(par->flag_include_polarization)
     printf(" - Will include T, Q and U\n");
   else 
     printf(" - Will only include T\n");
+  printf(" - Frequency list: %s\n",par->fname_nulist);
   if(par->flag_independent_polarization)
     printf(" - Independent spectral parameters for polarization\n");
   else
     printf(" - Same spectral parameters for T, Q and U\n");
-  printf(" - %d components include:",par->n_comp);
-  if(par->flag_include_cmb) printf(" CMB(%d)",par->index_cmb);
-  if(par->flag_include_synchrotron) printf(" Synchrotron(%d)",par->index_synchrotron);
-  if(par->flag_include_dust) printf(" Dust(%d)",par->index_dust);
-  printf("\n");
-  printf(" - Free spectral parameters (%d out of %d):\n",par->n_spec_vary,par->n_param_max);
-  if(par->flag_include_synchrotron && par->flag_beta_s_free) {
-    printf("    beta_s : (%d) [%s,",par->index_beta_s_t,par->input_beta_s_t_prior);
-    printf(",%s]",par->input_beta_s_p_prior);
-    printf(", D(beta_s) = %.3lf\n",par->beta_s_step);
-  }      
-  if(par->flag_include_dust && par->flag_beta_d_free) {
-    printf("    beta_d : (%d) [%s,",par->index_beta_d_t,par->input_beta_d_t_prior);
-    printf(",%s]",par->input_beta_d_p_prior);
-    printf(", D(beta_d) = %.3lf\n",par->beta_d_step);
-  }      
-  if(par->flag_include_dust && par->flag_temp_d_free) {
-    printf("    temp_d : (%d)[%s,",par->index_temp_d_t,par->input_temp_d_t_prior);
-    printf(",%s]",par->input_temp_d_p_prior);
-    printf(", D(temp_d) = %.3lf\n",par->temp_d_step);
-    printf("\n");
-  }
-  printf(" - %d DOF per pixel\n",par->n_dof_pix);
-  printf(" - Seed = %lu\n",par->seed);
-  printf(" - Will take %d samples\n",par->n_samples);
-  printf("   after %d burning steps\n",par->n_samples_burn);
-  if(par->flag_include_volume_prior)
-    printf(" - Will include volume prior on spectral indices\n");
-  else
-    printf(" - Won't include volume prior on spectral indices\n");
-  if(par->flag_write_samples)
-    printf(" - Will output every %d-th sample\n",par->n_output_rate);
-  printf(" - Proposal covariance will be updated every %d burning steps\n",
-	 par->n_update_covar);
-  printf(" - Amplitudes will be resampled every %d steps\n",par->n_spec_resample);
 #ifdef _DEBUG
   printf(" - Will print debug information for pixel %d\n",par->dbg_ipix);
 #endif //_DEBUG
+
+  if(par->do_bayes) {
+    printf(" - Will do Bayesian component separation\n");
+    if(par->flag_use_marginal)
+      printf(" - Will use marginal distribution for indices\n");
+    else
+      printf(" - Will sample amplitudes as well as indices\n");
+    if(par->flag_write_samples)
+      printf(" - Will output %d individual samples\n",n_samples_output);
+    printf(" - %d components include:",par->n_comp);
+    if(par->flag_include_cmb) printf(" CMB(%d)",par->index_cmb);
+    if(par->flag_include_synchrotron) printf(" Synchrotron(%d)",par->index_synchrotron);
+    if(par->flag_include_dust) printf(" Dust(%d)",par->index_dust);
+    printf("\n");
+    printf(" - Free spectral parameters (%d out of %d):\n",par->n_spec_vary,par->n_param_max);
+    if(par->flag_include_synchrotron && par->flag_beta_s_free) {
+      printf("    beta_s : (%d) [%s,",par->index_beta_s_t,par->input_beta_s_t_prior);
+      printf(",%s]",par->input_beta_s_p_prior);
+      printf(", D(beta_s) = %.3lf\n",par->beta_s_step);
+    }      
+    if(par->flag_include_dust && par->flag_beta_d_free) {
+      printf("    beta_d : (%d) [%s,",par->index_beta_d_t,par->input_beta_d_t_prior);
+      printf(",%s]",par->input_beta_d_p_prior);
+      printf(", D(beta_d) = %.3lf\n",par->beta_d_step);
+    }      
+    if(par->flag_include_dust && par->flag_temp_d_free) {
+      printf("    temp_d : (%d)[%s,",par->index_temp_d_t,par->input_temp_d_t_prior);
+      printf(",%s]",par->input_temp_d_p_prior);
+      printf(", D(temp_d) = %.3lf\n",par->temp_d_step);
+      printf("\n");
+    }
+    printf(" - %d DOF per pixel\n",par->n_dof_pix);
+    printf(" - Seed = %lu\n",par->seed);
+    printf(" - Will take %d samples\n",par->n_samples);
+    printf("   after %d burning steps\n",par->n_samples_burn);
+    if(par->flag_include_volume_prior)
+      printf(" - Will include volume prior on spectral indices\n");
+    else
+      printf(" - Won't include volume prior on spectral indices\n");
+    if(par->flag_write_samples)
+      printf(" - Will output every %d-th sample\n",par->n_output_rate);
+    printf(" - Proposal covariance will be updated every %d burning steps\n",
+	   par->n_update_covar);
+    printf(" - Amplitudes will be resampled every %d steps\n",par->n_spec_resample);
+  }
 }
 
 void param_bfore_free(ParamBFoRe *par)
 {
   free(par->maps_data);
   free(par->maps_noise_weight);
-  free(par->map_components_mean);
-  free(par->map_components_covar);
-  free(par->map_prior_centres);
-  free(par->map_prior_widths);
-  free(par->map_indices_mean);
-  free(par->map_indices_covar);
-  free(par->map_chi2);
   free(par->freqs);
+  if(par->do_bayes) {
+    free(par->map_components_mean);
+    free(par->map_components_covar);
+    free(par->map_prior_centres);
+    free(par->map_prior_widths);
+    free(par->map_indices_mean);
+    free(par->map_indices_covar);
+    free(par->map_chi2);
+  }
   free(par);
 }
 
@@ -280,6 +291,20 @@ ParamBFoRe *read_params(char *fname)
       sprintf(par->input_data_prefix,"%s",s2);
     else if(!strcmp(s1,"input_noise_prefix="))
       sprintf(par->input_noise_prefix,"%s",s2);
+    else if(!strcmp(s1,"output_prefix="))
+      sprintf(par->output_prefix,"%s",s2);
+    else if(!strcmp(s1,"fname_nulist="))
+      sprintf(par->fname_nulist,"%s",s2);
+    else if(!strcmp(s1,"include_polarization="))
+      par->flag_include_polarization=atoi(s2);
+    else if(!strcmp(s1,"nside="))
+      par->nside=atoi(s2); 
+#ifdef _DEBUG
+    else if(!strcmp(s1,"debug_pixel="))
+      par->dbg_ipix=atoi(s2);
+#endif //_DEBUG
+    else if(!strcmp(s1,"do_bayesian="))
+      par->do_bayes=atoi(s2);
     else if(!strcmp(s1,"input_beta_s_t_prior="))
       sprintf(par->input_beta_s_t_prior,"%s",s2);
     else if(!strcmp(s1,"input_beta_s_p_prior="))
@@ -292,14 +317,8 @@ ParamBFoRe *read_params(char *fname)
       sprintf(par->input_temp_d_t_prior,"%s",s2);
     else if(!strcmp(s1,"input_temp_d_p_prior="))
       sprintf(par->input_temp_d_p_prior,"%s",s2);
-    else if(!strcmp(s1,"output_prefix="))
-      sprintf(par->output_prefix,"%s",s2);
-    else if(!strcmp(s1,"fname_nulist="))
-      sprintf(par->fname_nulist,"%s",s2);
     else if(!strcmp(s1,"write_samples="))
       par->flag_write_samples=atoi(s2);
-    else if(!strcmp(s1,"include_polarization="))
-      par->flag_include_polarization=atoi(s2);
     else if(!strcmp(s1,"include_cmb="))
       par->flag_include_cmb=atoi(s2);
     else if(!strcmp(s1,"include_synchrotron="))
@@ -322,8 +341,6 @@ ParamBFoRe *read_params(char *fname)
       par->nu0_s=atof(s2);
     else if(!strcmp(s1,"nu0_dust="))
       par->nu0_d=atof(s2);
-    else if(!strcmp(s1,"nside="))
-      par->nside=atoi(s2); 
     else if(!strcmp(s1,"nside_spec="))
       par->nside_spec=atoi(s2);
     else if(!strcmp(s1,"seed="))
@@ -344,31 +361,12 @@ ParamBFoRe *read_params(char *fname)
       par->beta_d_step=atof(s2);
     else if(!strcmp(s1,"temp_d_step="))
       par->temp_d_step=atof(s2);
-#ifdef _DEBUG
-    else if(!strcmp(s1,"debug_pixel="))
-      par->dbg_ipix=atoi(s2);
-#endif //_DEBUG
    else
       fprintf(stderr,"BFoRe: Unknown parameter %s\n",s1);
   }
   fclose(fi);
 
-  if(par->flag_use_marginal)
-    par->flag_write_samples=0;
-
-  par->n_side_sub=par->nside/par->nside_spec;
-  par->n_sub=par->n_side_sub*par->n_side_sub;
   par->n_pix=12*par->nside*par->nside;
-  par->n_pix_spec=12*par->nside_spec*par->nside_spec;
-
-  par->n_samples_burn=(int)(par->frac_samples_burn*par->n_samples);
-  if(par->n_samples_burn>0.5*par->n_samples)
-    report_error(1,"Wrong burning fraction %lE\n",par->frac_samples_burn);
-  if(par->n_samples_burn<2*par->n_update_covar)
-    report_error(1,"#burning samples should be larger than the covariance update period\n");
-
-  if(par->flag_include_polarization==0)
-    par->flag_independent_polarization=0;
 
   fi=my_fopen(par->fname_nulist,"r");
   par->n_nu=my_linecount(fi); rewind(fi);
@@ -390,83 +388,103 @@ ParamBFoRe *read_params(char *fname)
   else
     par->n_pol=1;
 
-  par->n_comp=0;
-  if(par->flag_include_cmb) {
-    par->index_cmb=par->n_comp;
-    par->n_comp++;
-  }
-  if(par->flag_include_synchrotron) {
-    par->index_synchrotron=par->n_comp;
-    par->n_comp++;
-  }
-  if(par->flag_include_dust) {
-    par->index_dust=par->n_comp;
-    par->n_comp++;
-  }
+  if(par->flag_use_marginal)
+    par->flag_write_samples=0;
 
-  par->n_param_max=3;
-  if(par->flag_independent_polarization)
-    par->n_param_max*=2;
+  if(par->do_bayes) {
+    par->n_side_sub=par->nside/par->nside_spec;
+    par->n_sub=par->n_side_sub*par->n_side_sub;
+    par->n_pix_spec=12*par->nside_spec*par->nside_spec;
     
-  int index_novary=par->n_param_max;
-  par->n_spec_vary=0;
-  if(par->flag_include_synchrotron) {
-    if(par->flag_beta_s_free)
-      par->index_beta_s_t=par->n_spec_vary++;
-    else
-      par->index_beta_s_t=--index_novary;
-  }
-  if(par->flag_include_dust) {
-    if(par->flag_beta_d_free)
-      par->index_beta_d_t=par->n_spec_vary++;
-    else
-      par->index_beta_d_t=--index_novary;
-    if(par->flag_temp_d_free)
-      par->index_temp_d_t=par->n_spec_vary++;
-    else
-      par->index_temp_d_t=--index_novary;
-  }
-  if(par->flag_include_polarization && par->flag_independent_polarization) {
+    par->n_samples_burn=(int)(par->frac_samples_burn*par->n_samples);
+    if(par->n_samples_burn>0.5*par->n_samples)
+      report_error(1,"Wrong burning fraction %lE\n",par->frac_samples_burn);
+    if(par->n_samples_burn<2*par->n_update_covar)
+      report_error(1,"#burning samples should be larger than the covariance update period\n");
+    
+    if(par->flag_include_polarization==0)
+      par->flag_independent_polarization=0;
+    
+    par->n_comp=0;
+    if(par->flag_include_cmb) {
+      par->index_cmb=par->n_comp;
+      par->n_comp++;
+    }
+    if(par->flag_include_synchrotron) {
+      par->index_synchrotron=par->n_comp;
+      par->n_comp++;
+    }
+    if(par->flag_include_dust) {
+      par->index_dust=par->n_comp;
+      par->n_comp++;
+    }
+    
+    par->n_param_max=3;
+    if(par->flag_independent_polarization)
+      par->n_param_max*=2;
+    
+    int index_novary=par->n_param_max;
+    par->n_spec_vary=0;
     if(par->flag_include_synchrotron) {
       if(par->flag_beta_s_free)
-	par->index_beta_s_p=par->n_spec_vary++;
+	par->index_beta_s_t=par->n_spec_vary++;
       else
-	par->index_beta_s_p=--index_novary;
+	par->index_beta_s_t=--index_novary;
     }
     if(par->flag_include_dust) {
       if(par->flag_beta_d_free)
-	par->index_beta_d_p=par->n_spec_vary++;
+	par->index_beta_d_t=par->n_spec_vary++;
       else
-	par->index_beta_d_p=--index_novary;
+	par->index_beta_d_t=--index_novary;
       if(par->flag_temp_d_free)
-	par->index_temp_d_p=par->n_spec_vary++;
+	par->index_temp_d_t=par->n_spec_vary++;
       else
-	par->index_temp_d_p=--index_novary;
+	par->index_temp_d_t=--index_novary;
     }
+    if(par->flag_include_polarization && par->flag_independent_polarization) {
+      if(par->flag_include_synchrotron) {
+	if(par->flag_beta_s_free)
+	  par->index_beta_s_p=par->n_spec_vary++;
+	else
+	  par->index_beta_s_p=--index_novary;
+      }
+      if(par->flag_include_dust) {
+	if(par->flag_beta_d_free)
+	  par->index_beta_d_p=par->n_spec_vary++;
+	else
+	  par->index_beta_d_p=--index_novary;
+	if(par->flag_temp_d_free)
+	  par->index_temp_d_p=par->n_spec_vary++;
+	else
+	  par->index_temp_d_p=--index_novary;
+      }
+    }
+    else {
+      par->index_beta_s_p=par->index_beta_s_t;
+      par->index_beta_d_p=par->index_beta_d_t;
+      par->index_temp_d_p=par->index_temp_d_t;
+    }
+    par->n_dof_pix=par->n_sub*par->n_pol*(par->n_nu-par->n_comp)-par->n_spec_vary;
   }
-  else {
-    par->index_beta_s_p=par->index_beta_s_t;
-    par->index_beta_d_p=par->index_beta_d_t;
-    par->index_temp_d_p=par->index_temp_d_t;
-  }
-  par->n_dof_pix=par->n_sub*par->n_pol*(par->n_nu-par->n_comp)-par->n_spec_vary;
 
   //Allocate maps
   if(NodeThis==0)
     printf("Allocating memory for maps\n");
   par->maps_data=my_malloc(par->n_pix*par->n_pol*par->n_nu*sizeof(flouble));
   par->maps_noise_weight=my_malloc(par->n_pix*par->n_pol*par->n_nu*sizeof(flouble));
-  par->map_prior_centres=my_calloc(par->n_pix_spec*par->n_param_max,sizeof(flouble));
-  par->map_prior_widths=my_calloc(par->n_pix_spec*par->n_param_max,sizeof(flouble));
-  par->map_components_mean=my_calloc(par->n_pix*par->n_pol*par->n_comp,sizeof(flouble));
-  par->map_components_covar=my_calloc(par->n_pix*par->n_pol*par->n_comp*par->n_comp,
-				      sizeof(flouble));
-  par->map_indices_mean=my_calloc(par->n_pix_spec*par->n_spec_vary,sizeof(flouble));
-  par->map_indices_covar=my_calloc(par->n_pix_spec*par->n_spec_vary*par->n_spec_vary,
-				   sizeof(flouble));
-  par->map_chi2=my_calloc(par->n_pix,sizeof(flouble));
-  par->dbg_extra=my_malloc(par->n_spec_vary*(par->n_samples+par->n_samples_burn)*
-			   sizeof(flouble));
+  if(par->do_bayes) {
+    par->map_prior_centres=my_calloc(par->n_pix_spec*par->n_param_max,sizeof(flouble));
+    par->map_prior_widths=my_calloc(par->n_pix_spec*par->n_param_max,sizeof(flouble));
+    par->map_components_mean=my_calloc(par->n_pix*par->n_pol*par->n_comp,sizeof(flouble));
+    par->map_components_covar=my_calloc(par->n_pix*par->n_pol*par->n_comp*par->n_comp,
+					sizeof(flouble));
+    par->map_indices_mean=my_calloc(par->n_pix_spec*par->n_spec_vary,sizeof(flouble));
+    par->map_indices_covar=my_calloc(par->n_pix_spec*par->n_spec_vary*par->n_spec_vary,
+				     sizeof(flouble));
+    par->map_chi2=my_calloc(par->n_pix,sizeof(flouble));
+    par->dbg_extra=my_malloc(par->n_spec_vary*(par->n_samples+par->n_samples_burn)*
+			     sizeof(flouble));
+  }
 
   //Read input maps
   if(NodeThis==0)
@@ -479,9 +497,16 @@ ParamBFoRe *read_params(char *fname)
       map_dum=he_read_healpix_map(fname_in,&nside_dum,jj);
       if(nside_dum!=par->nside)
 	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ip=0;ip<par->n_pix;ip++)
-	par->maps_data[ii+par->n_nu*(jj+par->n_pol*ip)]=map_dum[ip];
+
+      if(par->do_bayes) {
+	he_ring2nest_inplace(map_dum,nside_dum);
+	for(ip=0;ip<par->n_pix;ip++)
+	  par->maps_data[ii+par->n_nu*(jj+par->n_pol*ip)]=map_dum[ip];
+      }
+      else {
+	for(ip=0;ip<par->n_pix;ip++)
+	  par->maps_data[ip+par->n_pix*(jj+par->n_pol*ii)]=map_dum[ip];
+      }
       free(map_dum);
     }
   }
@@ -497,131 +522,142 @@ ParamBFoRe *read_params(char *fname)
       map_dum=he_read_healpix_map(fname_in,&nside_dum,jj);
       if(nside_dum!=par->nside)
 	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ip=0;ip<par->n_pix;ip++) {
-	par->maps_noise_weight[ii+par->n_nu*(jj+par->n_pol*ip)]=
-	  amin2_per_pix/(map_dum[ip]*map_dum[ip]);
+
+      if(par->do_bayes) {
+	he_ring2nest_inplace(map_dum,nside_dum);
+	for(ip=0;ip<par->n_pix;ip++) {
+	  par->maps_noise_weight[ii+par->n_nu*(jj+par->n_pol*ip)]=
+	    amin2_per_pix/(map_dum[ip]*map_dum[ip]);
+	}
+      }
+      else {
+	for(ip=0;ip<par->n_pix;ip++) {
+	  par->maps_noise_weight[ip+par->n_pix*(jj+par->n_pol*ii)]=
+	    amin2_per_pix/(map_dum[ip]*map_dum[ip]);
+	}
       }
       free(map_dum);
     }
   }
 
-  //Set prior
-  if(NodeThis==0)
-    printf("Reading prior maps\n");
-  //beta_s T,P
-  if(par->flag_include_synchrotron) {
-    map_dum=he_read_healpix_map(par->input_beta_s_t_prior,&nside_dum,0);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_centres[par->index_beta_s_t+par->n_param_max*ii]=map_dum[ii];
-    free(map_dum);
-    map_dum=he_read_healpix_map(par->input_beta_s_t_prior,&nside_dum,1);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_widths[par->index_beta_s_t+par->n_param_max*ii]=map_dum[ii];
-    free(map_dum);
-    if(par->flag_include_polarization && par->flag_independent_polarization) {
-      map_dum=he_read_healpix_map(par->input_beta_s_p_prior,&nside_dum,0);
+  if(par->do_bayes) {
+    //Set prior
+    if(NodeThis==0)
+      printf("Reading prior maps\n");
+    //beta_s T,P
+    if(par->flag_include_synchrotron) {
+      map_dum=he_read_healpix_map(par->input_beta_s_t_prior,&nside_dum,0);
       if(nside_dum!=par->nside_spec)
 	report_error(1,"Read wrong nside\n");
       he_ring2nest_inplace(map_dum,nside_dum);
       for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_centres[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
+	par->map_prior_centres[par->index_beta_s_t+par->n_param_max*ii]=map_dum[ii];
       free(map_dum);
-      map_dum=he_read_healpix_map(par->input_beta_s_p_prior,&nside_dum,1);
+      map_dum=he_read_healpix_map(par->input_beta_s_t_prior,&nside_dum,1);
       if(nside_dum!=par->nside_spec)
 	report_error(1,"Read wrong nside\n");
       he_ring2nest_inplace(map_dum,nside_dum);
       for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_widths[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
+	par->map_prior_widths[par->index_beta_s_t+par->n_param_max*ii]=map_dum[ii];
       free(map_dum);
+      if(par->flag_include_polarization && par->flag_independent_polarization) {
+	map_dum=he_read_healpix_map(par->input_beta_s_p_prior,&nside_dum,0);
+	if(nside_dum!=par->nside_spec)
+	  report_error(1,"Read wrong nside\n");
+	he_ring2nest_inplace(map_dum,nside_dum);
+	for(ii=0;ii<par->n_pix_spec;ii++)
+	  par->map_prior_centres[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
+	free(map_dum);
+	map_dum=he_read_healpix_map(par->input_beta_s_p_prior,&nside_dum,1);
+	if(nside_dum!=par->nside_spec)
+	  report_error(1,"Read wrong nside\n");
+	he_ring2nest_inplace(map_dum,nside_dum);
+	for(ii=0;ii<par->n_pix_spec;ii++)
+	  par->map_prior_widths[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
+	free(map_dum);
+      }
     }
-  }
-  if(par->flag_include_dust) {
-    //beta_d T,P
-    map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,0);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_centres[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
-    free(map_dum);
-    map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,1);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_widths[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
-    free(map_dum);
-    if(par->flag_include_polarization && par->flag_independent_polarization) {
-      map_dum=he_read_healpix_map(par->input_beta_d_p_prior,&nside_dum,0);
+    if(par->flag_include_dust) {
+      //beta_d T,P
+      map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,0);
       if(nside_dum!=par->nside_spec)
 	report_error(1,"Read wrong nside\n");
       he_ring2nest_inplace(map_dum,nside_dum);
       for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_centres[par->index_beta_d_p+par->n_param_max*ii]=map_dum[ii];
+	par->map_prior_centres[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
       free(map_dum);
-      map_dum=he_read_healpix_map(par->input_beta_d_p_prior,&nside_dum,1);
+      map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,1);
       if(nside_dum!=par->nside_spec)
 	report_error(1,"Read wrong nside\n");
       he_ring2nest_inplace(map_dum,nside_dum);
       for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_widths[par->index_beta_d_p+par->n_param_max*ii]=map_dum[ii];
+	par->map_prior_widths[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
       free(map_dum);
+      if(par->flag_include_polarization && par->flag_independent_polarization) {
+	map_dum=he_read_healpix_map(par->input_beta_d_p_prior,&nside_dum,0);
+	if(nside_dum!=par->nside_spec)
+	  report_error(1,"Read wrong nside\n");
+	he_ring2nest_inplace(map_dum,nside_dum);
+	for(ii=0;ii<par->n_pix_spec;ii++)
+	  par->map_prior_centres[par->index_beta_d_p+par->n_param_max*ii]=map_dum[ii];
+	free(map_dum);
+	map_dum=he_read_healpix_map(par->input_beta_d_p_prior,&nside_dum,1);
+	if(nside_dum!=par->nside_spec)
+	  report_error(1,"Read wrong nside\n");
+	he_ring2nest_inplace(map_dum,nside_dum);
+	for(ii=0;ii<par->n_pix_spec;ii++)
+	  par->map_prior_widths[par->index_beta_d_p+par->n_param_max*ii]=map_dum[ii];
+	free(map_dum);
+      }
+      //temp_d T,P
+      map_dum=he_read_healpix_map(par->input_temp_d_t_prior,&nside_dum,0);
+      if(nside_dum!=par->nside_spec)
+	report_error(1,"Read wrong nside\n");
+      he_ring2nest_inplace(map_dum,nside_dum);
+      for(ii=0;ii<par->n_pix_spec;ii++)
+	par->map_prior_centres[par->index_temp_d_t+par->n_param_max*ii]=map_dum[ii];
+      free(map_dum);
+      map_dum=he_read_healpix_map(par->input_temp_d_t_prior,&nside_dum,1);
+      if(nside_dum!=par->nside_spec)
+	report_error(1,"Read wrong nside\n");
+      he_ring2nest_inplace(map_dum,nside_dum);
+      for(ii=0;ii<par->n_pix_spec;ii++)
+	par->map_prior_widths[par->index_temp_d_t+par->n_param_max*ii]=map_dum[ii];
+      free(map_dum);
+      if(par->flag_include_polarization && par->flag_independent_polarization) {
+	map_dum=he_read_healpix_map(par->input_temp_d_p_prior,&nside_dum,0);
+	if(nside_dum!=par->nside_spec)
+	  report_error(1,"Read wrong nside\n");
+	he_ring2nest_inplace(map_dum,nside_dum);
+	for(ii=0;ii<par->n_pix_spec;ii++)
+	  par->map_prior_centres[par->index_temp_d_p+par->n_param_max*ii]=map_dum[ii];
+	free(map_dum);
+	map_dum=he_read_healpix_map(par->input_temp_d_p_prior,&nside_dum,1);
+	if(nside_dum!=par->nside_spec)
+	  report_error(1,"Read wrong nside\n");
+	he_ring2nest_inplace(map_dum,nside_dum);
+	for(ii=0;ii<par->n_pix_spec;ii++)
+	  par->map_prior_widths[par->index_temp_d_p+par->n_param_max*ii]=map_dum[ii];
+	free(map_dum);
+      }
     }
-    //temp_d T,P
-    map_dum=he_read_healpix_map(par->input_temp_d_t_prior,&nside_dum,0);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_centres[par->index_temp_d_t+par->n_param_max*ii]=map_dum[ii];
-    free(map_dum);
-    map_dum=he_read_healpix_map(par->input_temp_d_t_prior,&nside_dum,1);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_widths[par->index_temp_d_t+par->n_param_max*ii]=map_dum[ii];
-    free(map_dum);
-    if(par->flag_include_polarization && par->flag_independent_polarization) {
-      map_dum=he_read_healpix_map(par->input_temp_d_p_prior,&nside_dum,0);
-      if(nside_dum!=par->nside_spec)
-	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_centres[par->index_temp_d_p+par->n_param_max*ii]=map_dum[ii];
-      free(map_dum);
-      map_dum=he_read_healpix_map(par->input_temp_d_p_prior,&nside_dum,1);
-      if(nside_dum!=par->nside_spec)
-	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_widths[par->index_temp_d_p+par->n_param_max*ii]=map_dum[ii];
-      free(map_dum);
-    }
-  }
 
-  int npix_leftover,npix_pernode;
-
-  npix_leftover=par->n_pix_spec%NNodes;
-  npix_pernode=(par->n_pix_spec-npix_leftover)/NNodes;
-  if(NodeThis<npix_leftover) {
-    par->ipix_0=NodeThis*npix_pernode+NodeThis;
-    par->ipix_f=par->ipix_0+npix_pernode+1;
-  }
-  else {
-    par->ipix_0=NodeThis*npix_pernode+npix_leftover;
-    par->ipix_f=par->ipix_0+npix_pernode;
-  }
+    int npix_leftover,npix_pernode;
+    
+    npix_leftover=par->n_pix_spec%NNodes;
+    npix_pernode=(par->n_pix_spec-npix_leftover)/NNodes;
+    if(NodeThis<npix_leftover) {
+      par->ipix_0=NodeThis*npix_pernode+NodeThis;
+      par->ipix_f=par->ipix_0+npix_pernode+1;
+    }
+    else {
+      par->ipix_0=NodeThis*npix_pernode+npix_leftover;
+      par->ipix_f=par->ipix_0+npix_pernode;
+    }
 #ifdef _DEBUG
-  printf("Node %d will compute pixels %d to %d\n",NodeThis,par->ipix_0,par->ipix_f-1);
+    printf("Node %d will compute pixels %d to %d\n",NodeThis,par->ipix_0,par->ipix_f-1);
 #endif //_DEBUG
+  }
 
   //Print parameters
   if(NodeThis==0)
@@ -650,11 +686,11 @@ static void write_debug_info(ParamBFoRe *par)
   my_fwrite(&(par->n_spec_vary),sizeof(par->n_spec_vary),1,fo);
   my_fwrite(&(par->n_samples),sizeof(par->n_samples),1,fo);
   my_fwrite(&(par->n_samples_burn),sizeof(par->n_samples_burn),1,fo);
-  
+
   //Write spectral chains
   my_fwrite(par->dbg_extra,sizeof(flouble),
 	    (par->n_samples+par->n_samples_burn)*par->n_spec_vary,fo);
-  
+
   //Write spectral mean
   my_fwrite(&(par->map_indices_mean[par->dbg_ipix*par->n_spec_vary]),sizeof(flouble),
 	    par->n_spec_vary,fo);
@@ -666,7 +702,7 @@ static void write_debug_info(ParamBFoRe *par)
   //Write amplitudes mean
   my_fwrite(&(par->map_components_mean[par->dbg_ipix*par->n_comp*par->n_pol*par->n_sub]),
 	    sizeof(flouble),par->n_comp*par->n_pol*par->n_sub,fo);
-  
+
   //Write amplitudes covar
   my_fwrite(&(par->map_components_covar[par->dbg_ipix*par->n_comp*par->n_comp*
 					par->n_pol*par->n_sub]),sizeof(flouble),
@@ -675,7 +711,7 @@ static void write_debug_info(ParamBFoRe *par)
   //Write input data
   my_fwrite(&(par->maps_data[par->dbg_ipix*par->n_nu*par->n_pol*par->n_sub]),sizeof(flouble),
 	    par->n_nu*par->n_pol*par->n_sub,fo);
-  
+
   //Write input noise weights
   my_fwrite(&(par->maps_noise_weight[par->dbg_ipix*par->n_nu*par->n_pol*par->n_sub]),
 	    sizeof(flouble),par->n_nu*par->n_pol*par->n_sub,fo);
@@ -778,7 +814,7 @@ static void write_moments(ParamBFoRe *par)
       for(is1=0;is1<par->n_spec_vary;is1++)
 	free(map_out[is1]);
       free(map_out);
-      
+
       //Write output spectral covariances
       sprintf(fname,"!%s_spec_covar.fits",par->output_prefix);
       ncorr=par->n_spec_vary*(par->n_spec_vary+1)/2;

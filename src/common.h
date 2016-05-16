@@ -20,6 +20,17 @@
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_multifit.h>
 #include <gsl/gsl_multimin.h>
+#include <fitsio.h>
+#include <chealpix.h>
+#ifdef _WITH_SHT
+#include <sharp_almhelpers.h>
+#include <sharp_geomhelpers.h>
+#include <sharp.h>
+#ifdef _WITH_NEEDLET
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_spline.h>
+#endif //_WITH_NEEDLET
+#endif //_WITH_SHT
 
 #ifdef _LONGIDS
 typedef long lint;
@@ -33,13 +44,23 @@ typedef float complex fcomplex;
 #ifdef _WITH_MPI
 #define FLOUBLE_MPI MPI_FLOAT
 #endif //_WITH_MPI
+#ifdef _WITH_SHT
+#define SHT_TYPE 0
+#endif //_WITH_SHT
 #else //_SPREC
 typedef double flouble;
 typedef double complex fcomplex;
 #ifdef _WITH_MPI
 #define FLOUBLE_MPI MPI_DOUBLE
 #endif //_WITH_MPI
+#ifdef _WITH_SHT
+#define SHT_TYPE SHARP_DP
+#endif //_WITH_SHT
 #endif //_SPREC
+
+#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
+#define MIN(a,b)  (((a)<(b)) ? (a) : (b)) // minimum
+
 
 extern int NNodes;
 extern int NodeThis;
@@ -47,17 +68,35 @@ extern int IThread0;
 
 typedef struct {
   int nside;
-  int nside_spec;
-  int n_side_sub;
   int n_sub;
   int n_pix;
-  int n_pix_spec;
 
   char input_data_prefix[256];
   flouble *maps_data;
 
   char input_noise_prefix[256];
   flouble *maps_noise_weight;
+
+  char output_prefix[256];
+
+  char fname_nulist[256];
+  int n_nu;
+  flouble *freqs;
+
+  int flag_include_polarization;
+  int n_pol;
+
+  int ipix_0;
+  int ipix_f;
+
+  int dbg_ipix;
+  flouble *dbg_extra;
+
+  //The following are only needed for Bayesian CS
+  int do_bayes;
+  int nside_spec;
+  int n_side_sub;
+  int n_pix_spec;
 
   char input_beta_s_t_prior[256];
   char input_beta_s_p_prior[256];
@@ -68,20 +107,12 @@ typedef struct {
   flouble *map_prior_centres;
   flouble *map_prior_widths;
 
-  char output_prefix[256];
   int flag_write_samples;
   flouble *map_components_mean;
   flouble *map_components_covar;
   flouble *map_indices_mean;
   flouble *map_indices_covar;
   flouble *map_chi2;
-
-  char fname_nulist[256];
-  int n_nu;
-  flouble *freqs;
-
-  int flag_include_polarization;
-  int n_pol;
 
   int flag_include_cmb;
   int flag_include_synchrotron;
@@ -120,11 +151,6 @@ typedef struct {
   int n_samples_burn;
   int n_spec_resample;
 
-  int ipix_0;
-  int ipix_f;
-
-  int dbg_ipix;
-  flouble *dbg_extra;
 } ParamBFoRe;
 
 //Defined in common.c
@@ -141,26 +167,57 @@ void write_output(ParamBFoRe *par);
 void dbg_printf(int do_print,char *fmt,...);
 
 //Defined in healpix_extra.c
+//HE_IO
+void he_write_healpix_map(flouble **tmap,int nfields,long nside,char *fname);
+flouble *he_read_healpix_map(char *fname,long *nside,int nfield);
+//HE_PIX
+int he_ring_num(long nside,double z);
+long *he_query_strip(long nside,double theta1,double theta2,long *npix_strip);
+void he_ring2nest_inplace(flouble *map_in,long nside);
+void he_nest2ring_inplace(flouble *map_in,long nside);
+void he_udgrade(flouble *map_in,long nside_in,flouble *map_out,long nside_out,int nest);
+//HE_SHT
 #ifdef _WITH_SHT
+#define HE_MAX_SHT 32
+#define HE_FWHM2SIGMA 0.00012352884853326381 //Transforms FWHM in arcmin to sigma_G in rad:
 long he_nalms(int lmax);
 long he_indexlm(int l,int m,int lmax);
 void he_alm2map(int nside,int lmax,int ntrans,flouble **maps,fcomplex **alms);
 void he_map2alm(int nside,int lmax,int ntrans,flouble **maps,fcomplex **alms);
+void he_alm2cl(fcomplex **alms_1,fcomplex **alms_2,
+	       int nmaps_1,int nmaps_2,int pol_1,int pol_2,flouble **cls,int lmax);
 void he_anafast(flouble **maps_1,flouble **maps_2,
-		int nmaps_1,int nmaps_2,
-		int pol_1,int pol_2,
+		int nmaps_1,int nmaps_2,int pol_1,int pol_2,
 		flouble **cls,int nside,int lmax);
-double *he_generate_beam_window(int lmax,double fwhm_amin);
-void he_alter_alm(int lmax,double fwhm_amin,fcomplex *alms,double *window);
+flouble *he_generate_beam_window(int lmax,flouble fwhm_amin);
+void he_alter_alm(int lmax,flouble fwhm_amin,fcomplex *alm_in,
+		  fcomplex *alm_out,flouble *window);
+flouble *he_synfast(flouble *cl,int nside,int lmax,unsigned int seed);
+//HE_NT
+#ifdef _WITH_NEEDLET
+#define HE_NBAND_NX 512
+#define HE_NORM_FT 2.2522836206907617
+#define HE_NL_INTPREC 1E-6
+#define HE_NT_NSIDE_MIN 32
+typedef struct {
+  double b;
+  double inv_b;
+  gsl_spline *b_spline;
+  gsl_interp_accel *b_intacc;
+  int nside0;
+  int nj;
+  int *nside_arr;
+  int *lmax_arr;
+  flouble **b_arr;
+} HE_nt_param;
+void he_nt_end(HE_nt_param *par);
+HE_nt_param *he_nt_init(flouble b_nt,int nside0);
+flouble ***he_alloc_needlet(HE_nt_param *par,int pol);
+void he_nt_get_window(HE_nt_param *par,int j,flouble *b);
+fcomplex **he_map2needlet(HE_nt_param *par,flouble **map,int pol,flouble ***nt,int return_alm);
+fcomplex **he_needlet2map(HE_nt_param *par,flouble **map,int pol,flouble ***nt,int return_alm);
+#endif //_WITH_NEEDLET
 #endif //_WITH_SHT
-void he_write_healpix_map(flouble **tmap,int nfields,long nside,char *fname);
-flouble *he_read_healpix_map(char *fname,long *nside,int nfield);
-int he_ring_num(long nside,double z);
-void he_ring2nest_inplace(flouble *map_in,long nside);
-void he_nest2ring_inplace(flouble *map_in,long nside);
-void he_udgrade(flouble *map_in,long nside_in,
-		flouble *map_out,long nside_out,
-		int nest);
 
 //Defined in rng.c
 #define RNG_NRAN 624
@@ -190,7 +247,6 @@ double rand_gauss(Rng *rng);
 #define LIN_TOL 2.0E-4
 #define LIN_ITMAX 100
 #define SIGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
-#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 #define SHFT(a,b,c,d) (a)=(b);(b)=(c);(c)=(d);  
 
 typedef struct {
