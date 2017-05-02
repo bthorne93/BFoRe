@@ -95,11 +95,12 @@ int main(int argc,char **argv)
     for(ipix_big=par->ipix_0;ipix_big<par->ipix_f;ipix_big++)
 #endif //_DEBUG_SINGLEPIX
       {
-	printf("Node %d, thread %d, pixel %d\n",NodeThis,ithr,ipix_big);
+	int ip=par->ipix_unmasked[ipix_big];
+	printf("Node %d, thread %d, pixel %d\n",NodeThis,ithr,ip);
 	if(par->flag_use_marginal)
-	  clean_pixel_from_marginal(par,rng,pst_old[ithr],pst_new[ithr],ipix_big);
+	  clean_pixel_from_marginal(par,rng,pst_old[ithr],pst_new[ithr],ip); //TODO: This needs checking
 	else
-	  clean_pixel(par,rng,pst_old[ithr],ipix_big);
+	  clean_pixel(par,rng,pst_old[ithr],ip); //TODO: This needs checking
       }//end omp for
     end_rng(rng);
   }//end omp parallel
@@ -112,9 +113,11 @@ int main(int argc,char **argv)
       pixel_state_free(pst_new[ii],par);
     free(pst_new);
   }
+
   if(NodeThis==0)
     printf("Writing output\n");
   write_output(par);
+
   param_bfore_free(par);
 
 #ifdef _WITH_MPI
