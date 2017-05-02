@@ -37,27 +37,16 @@ void mpi_init(int *p_argc,char ***p_argv)
 #endif //_WITH_MPI
 }
 
-int main(int argc,char **argv)
-{ 
-  char fname_init[256];
-  if(argc!=2) {
-    printf("Usage: fg_rm.x param_file\n");
-    exit(0);
-  }
-  sprintf(fname_init,"%s",argv[1]);
-
-  mpi_init(&argc,&argv);
-  gsl_set_error_handler_off();
-  ParamBFoRe *par=read_params(fname_init);
-
+static void clean_bayes(ParamBFoRe *par)
+{
   int ii,n_threads;
 #ifdef _WITH_OMP
   n_threads=omp_get_max_threads();
 #else //_WITH_OMP
   n_threads=1;
 #endif //_WITH_OMP
-  PixelState **pst_old,**pst_new=NULL;
 
+  PixelState **pst_old,**pst_new=NULL;
   pst_old=my_malloc(n_threads*sizeof(PixelState *));
   for(ii=0;ii<n_threads;ii++)
     pst_old[ii]=pixel_state_new(par);
@@ -66,7 +55,7 @@ int main(int argc,char **argv)
     for(ii=0;ii<n_threads;ii++)
       pst_new[ii]=pixel_state_new(par);
   }
-
+  
 #ifdef _WITH_OMP
 #ifndef _DEBUG_SINGLEPIX
 #pragma omp parallel default(none) shared(par,IThread0,NodeThis,pst_old,pst_new)
@@ -76,7 +65,7 @@ int main(int argc,char **argv)
     int ipix_big,ithr;
     unsigned long seed_thr;
     Rng *rng;
-
+    
     ithr=0;
 #ifdef _WITH_OMP
 #ifndef _DEBUG_SINGLEPIX
@@ -85,7 +74,7 @@ int main(int argc,char **argv)
 #endif //_WITH_OMP
     seed_thr=par->seed+IThread0+ithr;
     rng=init_rng(seed_thr);
-
+    
 #ifdef _DEBUG_SINGLEPIX
     ipix_big=par->dbg_ipix;
 #else //_DEBUG_SINGLEPIX
@@ -103,7 +92,7 @@ int main(int argc,char **argv)
       }//end omp for
     end_rng(rng);
   }//end omp parallel
-
+  
   for(ii=0;ii<n_threads;ii++)
     pixel_state_free(pst_old[ii],par);
   free(pst_old);
@@ -112,11 +101,29 @@ int main(int argc,char **argv)
       pixel_state_free(pst_new[ii],par);
     free(pst_new);
   }
+}
+
+int main(int argc,char **argv)
+{ 
+  char fname_init[256];
+  if(argc!=2) {
+    printf("Usage: fg_rm.x param_file\n");
+    exit(0);
+  }
+  sprintf(fname_init,"%s",argv[1]);
+
+  mpi_init(&argc,&argv);
+  gsl_set_error_handler_off();
+  ParamBFoRe *par=read_params(fname_init);
+
+  if(par->do_bayes)
+    clean_bayes(par);
+
   if(NodeThis==0)
     printf("Writing output\n");
   write_output(par);
   param_bfore_free(par);
-
+  
 #ifdef _WITH_MPI
   MPI_Finalize();
 #endif //_WITH_MPI

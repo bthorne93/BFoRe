@@ -410,7 +410,6 @@ void he_anafast(flouble **maps_1,flouble **maps_2,
 		int pol_1,int pol_2,
 		flouble **cls,int nside,int lmax)
 {
-  double time;
   fcomplex **alms_1,**alms_2;
   int i1,spin,lmax_here=3*nside-1;
 
@@ -602,7 +601,7 @@ HE_nt_param *he_nt_init(flouble b_nt,int nside0)
   par->lmax_arr=my_malloc(par->nj*sizeof(int));
   for(ii=0;ii<par->nj;ii++) {
     double dlmx=pow(par->b,ii+1);
-    double dlmn=pow(par->b,ii-1);
+    //    double dlmn=pow(par->b,ii-1);
     int lmx=(int)(dlmx)+1;
     int ns=pow(2,(int)(log((double)lmx)/log(2.))+1);
     par->nside_arr[ii]=MAX((MIN(ns,par->nside0)),HE_NT_NSIDE_MIN);
@@ -632,7 +631,7 @@ flouble ***he_alloc_needlet(HE_nt_param *par,int pol)
   int ii,nmaps;
   flouble ***nt=my_malloc(par->nj*sizeof(flouble **));
   if(pol)
-    nmaps=2;
+    nmaps=3;
   else
     nmaps=1;
 
@@ -646,6 +645,25 @@ flouble ***he_alloc_needlet(HE_nt_param *par,int pol)
   }
 
   return nt;
+}
+
+void he_free_needlet(HE_nt_param *par,int pol,flouble ***nt)
+{
+  int ii,nmaps;
+
+  if(pol)
+    nmaps=3;
+  else
+    nmaps=1;
+
+  for(ii=0;ii<par->nj;ii++) {
+    int imap;
+    for(imap=0;imap<nmaps;imap++) {
+      free(nt[ii][imap]);
+    }
+    free(nt[ii]);
+  }
+  free(nt);
 }
 
 void he_nt_get_window(HE_nt_param *par,int j,flouble *b)
@@ -663,22 +681,19 @@ void he_nt_get_window(HE_nt_param *par,int j,flouble *b)
   }
 }
 
-fcomplex **he_needlet2map(HE_nt_param *par,flouble **map,int pol,flouble ***nt,int return_alm)
+fcomplex **he_needlet2map(HE_nt_param *par,flouble **map,flouble ***nt,
+			  int return_alm,int pol,int qu_in,int qu_out)
 {
-  int j,nmaps,spin;
+  int j,nmaps;
   fcomplex **alm,**alm_dum;
   int l_max=3*par->nside0-1;
   long n_alms=he_nalms(l_max);
 
   //Figure out spin
-  if(pol) {
-    nmaps=2;
-    spin=2;
-  }
-  else {
+  if(pol)
+    nmaps=3;
+  else
     nmaps=1;
-    spin=0;
-  }
 
   //Allocate alms
   alm=my_malloc(nmaps*sizeof(fcomplex *));
@@ -695,8 +710,13 @@ fcomplex **he_needlet2map(HE_nt_param *par,flouble **map,int pol,flouble ***nt,i
     int imap;
 
     //Compute alm's for j-th needlet
-    sht_wrapper(spin,par->lmax_arr[j],par->nside_arr[j],1,nt[j],alm_dum,SHARP_MAP2ALM);
-
+    sht_wrapper(0,par->lmax_arr[j],par->nside_arr[j],1,nt[j],alm_dum,SHARP_MAP2ALM);
+    if(pol) {
+      if(qu_in)
+	sht_wrapper(2,par->lmax_arr[j],par->nside_arr[j],1,&(nt[j][1]),&(alm_dum[1]),SHARP_MAP2ALM);
+      else
+	sht_wrapper(0,par->lmax_arr[j],par->nside_arr[j],2,&(nt[j][1]),&(alm_dum[1]),SHARP_MAP2ALM);
+    }
     //Loop over spin components
     for(imap=0;imap<nmaps;imap++) {
       //Multiply by window and add to total alm
@@ -712,7 +732,13 @@ fcomplex **he_needlet2map(HE_nt_param *par,flouble **map,int pol,flouble ***nt,i
   }
 
   //Transform total alm back to map
-  sht_wrapper(spin,l_max,par->nside0,1,map,alm,SHARP_MAP2ALM);
+  sht_wrapper(0,l_max,par->nside0,1,map,alm,SHARP_ALM2MAP);
+  if(pol) {
+    if(qu_out)
+      sht_wrapper(2,l_max,par->nside0,1,&(map[1]),&(alm[1]),SHARP_ALM2MAP);
+    else
+      sht_wrapper(0,l_max,par->nside0,2,&(map[1]),&(alm[1]),SHARP_ALM2MAP);
+  }
 
   if(!return_alm) {
     for(j=0;j<nmaps;j++)
@@ -727,22 +753,19 @@ fcomplex **he_needlet2map(HE_nt_param *par,flouble **map,int pol,flouble ***nt,i
   return alm;
 }
 
-fcomplex **he_map2needlet(HE_nt_param *par,flouble **map,int pol,flouble ***nt,int return_alm)
+fcomplex **he_map2needlet(HE_nt_param *par,flouble **map,flouble ***nt,
+			  int return_alm,int pol,int qu_in,int qu_out)
 {
-  int j,nmaps,spin;
+  int j,nmaps;
   fcomplex **alm,**alm_dum;
   int l_max=3*par->nside0-1;
   long n_alms=he_nalms(l_max);
 
   //Figure out spin
-  if(pol) {
-    nmaps=2;
-    spin=2;
-  }
-  else {
+  if(pol)
+    nmaps=3;
+  else
     nmaps=1;
-    spin=0;
-  }
 
   //Allocate alms
   alm=my_malloc(nmaps*sizeof(fcomplex *));
@@ -753,7 +776,11 @@ fcomplex **he_map2needlet(HE_nt_param *par,flouble **map,int pol,flouble ***nt,i
   }
 
   //SHT
-  sht_wrapper(spin,l_max,par->nside0,1,map,alm,SHARP_MAP2ALM);
+  sht_wrapper(0,l_max,par->nside0,1,map,alm,SHARP_MAP2ALM);
+  if(qu_in)
+    sht_wrapper(2,l_max,par->nside0,1,&(map[1]),&(alm[1]),SHARP_MAP2ALM);
+  else
+    sht_wrapper(0,l_max,par->nside0,2,&(map[1]),&(alm[1]),SHARP_MAP2ALM);
 
   //Iterate over scales
   for(j=0;j<par->nj;j++) {
@@ -777,7 +804,11 @@ fcomplex **he_map2needlet(HE_nt_param *par,flouble **map,int pol,flouble ***nt,i
     }
 
     //SHT^-1
-    sht_wrapper(spin,par->lmax_arr[j],par->nside_arr[j],1,nt[j],alm_dum,SHARP_ALM2MAP);
+    sht_wrapper(0,par->lmax_arr[j],par->nside_arr[j],1,nt[j],alm_dum,SHARP_ALM2MAP);
+    if(qu_out)
+      sht_wrapper(2,par->lmax_arr[j],par->nside_arr[j],1,&(nt[j][1]),&(alm_dum[1]),SHARP_ALM2MAP);
+    else
+      sht_wrapper(0,par->lmax_arr[j],par->nside_arr[j],2,&(nt[j][1]),&(alm_dum[1]),SHARP_ALM2MAP);
   }
 
   if(!return_alm) {
