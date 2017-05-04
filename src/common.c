@@ -92,27 +92,26 @@ static ParamBFoRe *param_bfore_new(void)
   ParamBFoRe *par=(ParamBFoRe *)my_malloc(sizeof(ParamBFoRe));
 
   par->nside=256;
-  par->nside_spec=32;
-  par->n_side_sub=8;
-  par->n_sub=64;
   par->n_pix=786432;
-  
+
   sprintf(par->input_data_prefix,"default");
   par->maps_data=NULL;
 
   sprintf(par->output_prefix,"default");
+
   sprintf(par->fname_nulist,"default");
   par->n_nu=-1;
   par->freqs=NULL;
-  
+
   par->flag_include_polarization=0;
   par->n_pol=1;
 
+  par->ipix_0=0;
+  par->ipix_f=49152;
+  par->dec_dbg_ipix=0;
+  par->ra_dbg_ipix=0;
   par->dbg_ipix=0;
   par->dbg_extra=NULL;
-
-  par->ipix_0=-1;
-  par->ipix_f=-1;
 
   par->do_nilc=0;
   par->covar_patch_exponent=5;
@@ -120,16 +119,26 @@ static ParamBFoRe *param_bfore_new(void)
   par->ntp=NULL;
 
   par->do_bayes=1;
+  par->nside_spec=32;
+  par->n_side_sub=8;
+  par->n_sub=64;
+  par->n_pix_spec=49152;
+  par->n_pix_spec_unmasked=49152;
+
+  sprintf(par->input_mask_fname,"default");
+  par->ipix_unmasked=NULL;
+
+  sprintf(par->input_noise_prefix,"default");
+  par->maps_noise_weight=NULL;
+
   sprintf(par->input_beta_s_t_prior,"default");
   sprintf(par->input_beta_s_p_prior,"default");
   sprintf(par->input_beta_d_t_prior,"default");
   sprintf(par->input_beta_d_p_prior,"default");
   sprintf(par->input_temp_d_t_prior,"default");
   sprintf(par->input_temp_d_p_prior,"default");
-  sprintf(par->input_noise_prefix,"default");
   par->map_prior_centres=NULL;
   par->map_prior_widths=NULL;
-  par->maps_noise_weight=NULL;
 
   par->flag_write_samples=0;
   par->map_components_mean=NULL;
@@ -175,7 +184,7 @@ static ParamBFoRe *param_bfore_new(void)
   par->n_update_covar=1000;
   par->n_samples_burn=20000;
   par->n_spec_resample=1;
-  
+
   return par;
 }
 
@@ -201,7 +210,7 @@ static void param_bfore_print(ParamBFoRe *par)
   else
     printf(" - Same spectral parameters for T, Q and U\n");
 #ifdef _DEBUG
-  printf(" - Will print debug information for pixel %d\n",par->dbg_ipix);
+  printf(" - Will print debug information for pixel %ld\n",par->dbg_ipix);
 #endif //_DEBUG
   if(par->do_nilc) {
     printf(" - Will do NILC cleaning\n");
@@ -212,6 +221,7 @@ static void param_bfore_print(ParamBFoRe *par)
 
   if(par->do_bayes) {
     printf(" - Will do Bayesian component separation\n");
+    printf(" - Input mask: %s\n",par->input_mask_fname);
     if(par->flag_use_marginal)
       printf(" - Will use marginal distribution for indices\n");
     else
@@ -269,14 +279,16 @@ void param_bfore_free(ParamBFoRe *par)
     he_nt_end(par->ntp);
   }
   if(par->do_bayes) {
+    free(par->ipix_unmasked);
+    free(par->maps_noise_weight);
     free(par->map_components_mean);
     free(par->map_components_covar);
-    free(par->maps_noise_weight);
     free(par->map_prior_centres);
     free(par->map_prior_widths);
     free(par->map_indices_mean);
     free(par->map_indices_covar);
     free(par->map_chi2);
+    free(par->dbg_extra);
   }
   free(par);
 }
@@ -388,7 +400,7 @@ static void read_maps_bayes(ParamBFoRe *par)
       map_dum=he_read_healpix_map(fname_in,&nside_dum,jj);
       if(nside_dum!=par->nside)
 	report_error(1,"Read wrong nside\n");
-      
+
       he_ring2nest_inplace(map_dum,nside_dum);
       for(ip=0;ip<par->n_pix;ip++) {
 	par->maps_noise_weight[ii+par->n_nu*(jj+par->n_pol*ip)]=
@@ -397,6 +409,34 @@ static void read_maps_bayes(ParamBFoRe *par)
       free(map_dum);
     }
   }
+
+  //Read mask
+#ifndef _DEBUG_SINGLEPIX
+  if(NodeThis==0)
+    printf("Reading mask from %s\n",par->input_mask_fname);
+  map_dum=he_read_healpix_map(par->input_mask_fname,&nside_dum,0);
+  if(nside_dum!=par->nside_spec)
+    report_error(1,"Read wrong nside\n");
+  he_ring2nest_inplace(map_dum,nside_dum);
+#else //_DEBUG_SINGLEPIX
+  map_dum=my_malloc(par->nside_spec*par->nside_spec*12*sizeof(flouble));
+  for(ii=0;ii<par->n_pix_spec;ii++)
+    map_dum[ii]=1.0;
+#endif //_DEBUG_SINGLEPIX
+  par->n_pix_spec_unmasked=0;
+  for(ii=0;ii<par->n_pix_spec;ii++) {
+    if(map_dum[ii]>0)
+      par->n_pix_spec_unmasked++;
+  }
+  par->ipix_unmasked=my_malloc(par->n_pix_spec_unmasked*sizeof(int));
+  par->n_pix_spec_unmasked=0;
+  for(ii=0;ii<par->n_pix_spec;ii++) {
+    if(map_dum[ii]>0) {
+      par->ipix_unmasked[par->n_pix_spec_unmasked]=ii;
+      par->n_pix_spec_unmasked++;
+    }
+  }
+  free(map_dum);
 
   //Set prior
   if(NodeThis==0)
@@ -503,11 +543,11 @@ static void read_maps_bayes(ParamBFoRe *par)
 ParamBFoRe *read_params(char *fname)
 {
   FILE *fi;
-  int n_lin,ii;
   char fname_in[256];
-  flouble *map_dum;
+  int n_lin,ii;
   long nside_dum;
   ParamBFoRe *par=param_bfore_new();
+  flouble *map_dum;
 
   //Read parameters from file
   if(NodeThis==0)
@@ -536,6 +576,12 @@ ParamBFoRe *read_params(char *fname)
     else if(!strcmp(s1,"nside="))
       par->nside=atoi(s2); 
 #ifdef _DEBUG
+    else if(!strcmp(s1,"dec_dbg_ipix="))
+      par->dec_dbg_ipix=atof(s2);
+    else if(!strcmp(s1,"ra_dbg_ipix="))
+      par->ra_dbg_ipix=atof(s2);
+#endif //_DEBUG
+#ifdef _DEBUG
     else if(!strcmp(s1,"debug_pixel="))
       par->dbg_ipix=atoi(s2);
 #endif //_DEBUG
@@ -547,6 +593,8 @@ ParamBFoRe *read_params(char *fname)
       par->covar_patch_exponent=atoi(s2);
     else if(!strcmp(s1,"do_bayesian="))
       par->do_bayes=atoi(s2);
+    else if(!strcmp(s1,"input_mask_fname="))
+      sprintf(par->input_mask_fname,"%s",s2);
     else if(!strcmp(s1,"input_beta_s_t_prior="))
       sprintf(par->input_beta_s_t_prior,"%s",s2);
     else if(!strcmp(s1,"input_beta_s_p_prior="))
@@ -608,6 +656,12 @@ ParamBFoRe *read_params(char *fname)
   }
   fclose(fi);
 
+#ifdef _DEBUG
+  long  idum;
+  ang2pix_ring(par->nside_spec,(90-par->dec_dbg_ipix)*M_PI/180,par->ra_dbg_ipix*M_PI/180,&idum);
+  ring2nest(par->nside_spec,idum,&(par->dbg_ipix));
+#endif //_DEBUG
+
   par->n_pix=12*par->nside*par->nside;
 
   fi=my_fopen(par->fname_nulist,"r");
@@ -651,7 +705,7 @@ ParamBFoRe *read_params(char *fname)
     par->map_components_covar=my_calloc(par->n_pix*par->n_pol*par->n_comp*par->n_comp,sizeof(flouble));
     par->map_indices_mean=my_calloc(par->n_pix_spec*par->n_spec_vary,sizeof(flouble));
     par->map_indices_covar=my_calloc(par->n_pix_spec*par->n_spec_vary*par->n_spec_vary,sizeof(flouble));
-    par->map_chi2=my_calloc(par->n_pix,sizeof(flouble));
+    par->map_chi2=my_calloc(par->n_pix_spec,sizeof(flouble));
     par->dbg_extra=my_malloc(par->n_spec_vary*(par->n_samples+par->n_samples_burn)*sizeof(flouble));
   }
   if(par->do_nilc) {
@@ -661,7 +715,7 @@ ParamBFoRe *read_params(char *fname)
     par->nt_output=he_alloc_needlet(par->ntp,par->flag_include_polarization);
   }
 
-  //Read maps
+  //Read input maps
   if(NodeThis==0)
     printf("Reading data from %sXXX.fits\n",par->input_data_prefix);
   for(ii=0;ii<par->n_nu;ii++) {
@@ -672,7 +726,7 @@ ParamBFoRe *read_params(char *fname)
       map_dum=he_read_healpix_map(fname_in,&nside_dum,jj);
       if(nside_dum!=par->nside)
 	report_error(1,"Read wrong nside\n");
-      
+
       he_ring2nest_inplace(map_dum,nside_dum);
       for(ip=0;ip<par->n_pix;ip++)
 	par->maps_data[ii+par->n_nu*(jj+par->n_pol*ip)]=map_dum[ip];
@@ -682,9 +736,9 @@ ParamBFoRe *read_params(char *fname)
   if(par->do_bayes) {
     int npix_leftover,npix_pernode;
     read_maps_bayes(par);
-    
-    npix_leftover=par->n_pix_spec%NNodes;
-    npix_pernode=(par->n_pix_spec-npix_leftover)/NNodes;
+
+    npix_leftover=par->n_pix_spec_unmasked%NNodes;
+    npix_pernode=(par->n_pix_spec_unmasked-npix_leftover)/NNodes;
     if(NodeThis<npix_leftover) {
       par->ipix_0=NodeThis*npix_pernode+NodeThis;
       par->ipix_f=par->ipix_0+npix_pernode+1;
@@ -711,7 +765,7 @@ static void write_debug_info(ParamBFoRe *par)
   FILE *fo;
   int size_float=sizeof(flouble);
   char fname[256];
-  sprintf(fname,"%s_node%d_pix%d.dbg",par->output_prefix,NodeThis,par->dbg_ipix);
+  sprintf(fname,"%s_node%d_pix%ld.dbg",par->output_prefix,NodeThis,par->dbg_ipix);
   fo=my_fopen(fname,"wb");
 
   my_fwrite(&size_float,sizeof(size_float),1,fo);
@@ -783,6 +837,7 @@ static void write_moments(ParamBFoRe *par)
     reduce_map(par->map_indices_mean,par->n_spec_vary*par->n_pix_spec);
     reduce_map(par->map_indices_covar,par->n_spec_vary*par->n_spec_vary*par->n_pix_spec);
   }
+  reduce_map(par->map_chi2,par->n_pix_spec);
 
   if(NodeThis==0) {
     //Write output amplitude means
@@ -838,6 +893,11 @@ static void write_moments(ParamBFoRe *par)
       }
     }
     free(map_out);
+
+    //Write chi2 map
+    sprintf(fname,"!%s_chi2.fits",par->output_prefix);
+    he_nest2ring_inplace(par->map_chi2,par->nside_spec);
+    he_write_healpix_map(&(par->map_chi2),1,par->nside_spec,fname);
 
     if(par->n_spec_vary>0) {
       //Write output spectral means
@@ -990,7 +1050,7 @@ void write_output(ParamBFoRe *par)
     if(par->flag_write_samples) {
       if(NodeThis==0)
 	printf("  Writing individual samles\n");
-      write_samples(par);
+      write_samples(par); //TODO: This needs checking
     }
     //#endif //_DEBUG_SINGLEPIX
   }

@@ -32,7 +32,7 @@ ifeq ($(DEBUG_SINGLEPIX),yes)
 endif
 endif
 
-INCS= -I./src $(INC_GSL) $(INC_HP) $(INC_FITS)
+INCS= -I./src $(INC_GSL) $(INC_HP) $(INC_FITS) $(INC_SHARP)
 LIBDIRS= $(LIB_GSL) $(LIB_HP) $(LIB_FITS) $(LIB_SHARP)
 LIBS+= -lgsl -lgslcblas -lchealpix -lcfitsio -lm
 ifeq ($(ADD_NILC),yes)
@@ -52,10 +52,10 @@ BFOREO= src/bfore.o
 MAINO= src/main.o
 OBJ= $(COMMONO) $(HEO) $(RNGO) $(POWELLO) $(BFOREO) $(MAINO)
 
-EXEC= BFoRe_db
+EXEC= BFoRe
 all: $(EXEC)
 
-BFoRe_db : $(OBJ)
+BFoRe : $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) $(LIBDIRS) $(LIBS) -o $@
 
 clean :

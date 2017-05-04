@@ -55,7 +55,7 @@ static void clean_bayes(ParamBFoRe *par)
     for(ii=0;ii<n_threads;ii++)
       pst_new[ii]=pixel_state_new(par);
   }
-  
+
 #ifdef _WITH_OMP
 #ifndef _DEBUG_SINGLEPIX
 #pragma omp parallel default(none) shared(par,IThread0,NodeThis,pst_old,pst_new)
@@ -65,7 +65,7 @@ static void clean_bayes(ParamBFoRe *par)
     int ipix_big,ithr;
     unsigned long seed_thr;
     Rng *rng;
-    
+
     ithr=0;
 #ifdef _WITH_OMP
 #ifndef _DEBUG_SINGLEPIX
@@ -74,7 +74,7 @@ static void clean_bayes(ParamBFoRe *par)
 #endif //_WITH_OMP
     seed_thr=par->seed+IThread0+ithr;
     rng=init_rng(seed_thr);
-    
+
 #ifdef _DEBUG_SINGLEPIX
     ipix_big=par->dbg_ipix;
 #else //_DEBUG_SINGLEPIX
@@ -84,15 +84,16 @@ static void clean_bayes(ParamBFoRe *par)
     for(ipix_big=par->ipix_0;ipix_big<par->ipix_f;ipix_big++)
 #endif //_DEBUG_SINGLEPIX
       {
-	printf("Node %d, thread %d, pixel %d\n",NodeThis,ithr,ipix_big);
+	int ip=par->ipix_unmasked[ipix_big];
+	printf("Node %d, thread %d, pixel %d\n",NodeThis,ithr,ip);
 	if(par->flag_use_marginal)
-	  clean_pixel_from_marginal(par,rng,pst_old[ithr],pst_new[ithr],ipix_big);
+	  clean_pixel_from_marginal(par,rng,pst_old[ithr],pst_new[ithr],ip); //TODO: This needs checking
 	else
-	  clean_pixel(par,rng,pst_old[ithr],ipix_big);
+	  clean_pixel(par,rng,pst_old[ithr],ip); //TODO: This needs checking
       }//end omp for
     end_rng(rng);
   }//end omp parallel
-  
+
   for(ii=0;ii<n_threads;ii++)
     pixel_state_free(pst_old[ii],par);
   free(pst_old);
@@ -123,7 +124,7 @@ int main(int argc,char **argv)
     printf("Writing output\n");
   write_output(par);
   param_bfore_free(par);
-  
+
 #ifdef _WITH_MPI
   MPI_Finalize();
 #endif //_WITH_MPI
