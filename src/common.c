@@ -534,7 +534,7 @@ ParamBFoRe *read_params(char *fname)
   //Read mask
 #ifndef _DEBUG_SINGLEPIX
   if(NodeThis==0)
-    printf("Reading data from %s\n",par->input_mask_fname);
+    printf("Reading mask from %s\n",par->input_mask_fname);
   map_dum=he_read_healpix_map(par->input_mask_fname,&nside_dum,0);
   if(nside_dum!=par->nside_spec)
     report_error(1,"Read wrong nside\n");
