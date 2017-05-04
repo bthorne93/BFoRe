@@ -48,9 +48,10 @@ COMMONO= src/common.o
 HEO= src/healpix_extra.o
 RNGO= src/rng.o
 POWELLO= src/powell.o
+NILCO= src/nilc.o
 BFOREO= src/bfore.o
 MAINO= src/main.o
-OBJ= $(COMMONO) $(HEO) $(RNGO) $(POWELLO) $(BFOREO) $(MAINO)
+OBJ= $(COMMONO) $(HEO) $(RNGO) $(POWELLO) $(BFOREO) $(NILCO) $(MAINO)
 
 EXEC= BFoRe
 all: $(EXEC)

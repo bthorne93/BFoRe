@@ -37,7 +37,7 @@ void mpi_init(int *p_argc,char ***p_argv)
 #endif //_WITH_MPI
 }
 
-static void clean_bayes(ParamBFoRe *par)
+static void do_bayes(ParamBFoRe *par)
 {
   int ii,n_threads;
 #ifdef _WITH_OMP
@@ -118,7 +118,9 @@ int main(int argc,char **argv)
   ParamBFoRe *par=read_params(fname_init);
 
   if(par->do_bayes)
-    clean_bayes(par);
+    do_bayes(par);
+  if(par->do_nilc)
+    do_nilc(par);
 
   if(NodeThis==0)
     printf("Writing output\n");

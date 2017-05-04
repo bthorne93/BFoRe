@@ -108,27 +108,6 @@ void pixel_state_free(PixelState *pst,ParamBFoRe *par)
   free(pst);
 }
 
-static flouble freq_evolve(int spec_type,double nu_0,double beta,double temp,double nu)
-{
-  flouble x_to,x_from,ex;
-  switch(spec_type)  {
-  case 0 :
-    x_to=0.017611907*nu;
-    ex=exp(x_to);
-    x_to=x_to/(ex-1);
-    return ex*x_to*x_to;
-    break;
-  case 1 :
-    return pow(nu/nu_0,beta-2.);
-    break;
-  case 2 :
-    x_to=0.0479924466*nu/temp; //DAM: possible optimization, use 1/T instead of T
-    x_from=0.0479924466*nu_0/temp;
-    return pow(nu/nu_0,beta+1.)*(exp(x_from)-1)/(exp(x_to)-1);
-  }
-  return -1;
-}
-
 static void compute_f_matrix(ParamBFoRe *par,flouble *x_spec,flouble *f_matrix)
 {
   int inu;
