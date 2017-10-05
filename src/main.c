@@ -1,44 +1,68 @@
 #include "common.h"
 
-void mpi_init(int *p_argc,char ***p_argv)
+void mpi_init(int *p_argc, char ***p_argv)
 {
 #ifdef _WITH_MPI
-  int ii,nthreads_this;
+  int ii, nthreads_this;
   int *nthreads_all;
-  MPI_Init(p_argc,p_argv);
 
-  MPI_Comm_size(MPI_COMM_WORLD,&NNodes);
-  MPI_Comm_rank(MPI_COMM_WORLD,&NodeThis);
+  /* Initialize MPI processes and get number of nodes, NNodes, and individual
+  node number, NodeThis.
+  */
+  MPI_Init(p_argc, p_argv);
+  MPI_Comm_size(MPI_COMM_WORLD, &NNodes);
+  MPI_Comm_rank(MPI_COMM_WORLD, &NodeThis);
 
   nthreads_all=my_malloc(NNodes*sizeof(int));
-#ifdef _WITH_OMP
+
+  /* If compiling with openmp each process checks for number of available
+  threads. Indent is due to this being nested within _WITH_MPI
+  */
+  #ifdef _WITH_OMP
   nthreads_this=omp_get_max_threads();
-#else //_WITH_OMP
+  #else //_WITH_OMP
   nthreads_this=1;
-#endif //_WITH_OMP
-  MPI_Allgather(&nthreads_this,1,MPI_INT,nthreads_all,1,MPI_INT,MPI_COMM_WORLD);
-  if(NodeThis==0) {
-    for(ii=0;ii<NNodes;ii++)
-      printf("Node %d has %d threads\n",ii,nthreads_all[ii]);
+  #endif //_WITH_OMP
+
+  /* Gather information about the number of threads available to each node.
+  Sneds each node's nthreads_this to all other nodes. Therefore every node
+  knows how many threads each other node has, these are stored in
+  nthreads_all, which is NNodes integers long.
+
+  Master node then prints summary of this information.
+  */
+  MPI_Allgather(&nthreads_this, 1, MPI_INT, nthreads_all, 1, MPI_INT, MPI_COMM_WORLD);
+  if(NodeThis == 0)
+  {
+    for(ii = 0; ii < NNodes; ii++)
+    {
+      printf("Node %d has %d threads\n", ii, nthreads_all[ii]);
+    }
   }
-  IThread0=0;
-  for(ii=0;ii<NodeThis;ii++)
-    IThread0+=nthreads_all[ii];
-#ifdef _DEBUG
-  printf("Node %d, thread count starts at %d\n",NodeThis,IThread0);
-#endif //_DEBUG
+
+  /* IThread0 is built up by summing number of threads for all nodes below
+  the current node.
+  */
+  IThread0 = 0;
+  for(ii = 0; ii < NodeThis; ii++)
+  {
+    IThread0 += nthreads_all[ii];
+  }
+
+  #ifdef _DEBUG
+  printf("Node %d, thread count starts at %d \n", NodeThis, IThread0);
+  #endif //_DEBUG
   free(nthreads_all);
+  #else //_WITH_MPI
 
-#else //_WITH_MPI
-
-  NNodes=1;
-  NodeThis=0;
-  IThread0=0;
+  NNodes = 1;
+  NodeThis = 0;
+  IThread0 = 0;
 #endif //_WITH_MPI
 }
 
-int main(int argc,char **argv)
-{ 
+int main(int argc, char **argv)
+{
   char fname_init[256];
   if(argc!=2) {
     printf("Usage: fg_rm.x param_file\n");
