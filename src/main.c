@@ -1,3 +1,15 @@
+/** @file main.c
+ *  @brief Main file of BFoRe.
+ *
+ *  This contains the main function of BFoRe controlling the parallelization
+ *  and implementation of the code.
+ *
+ *  @author David Alonso (Primary author)
+ *  @author Ben Thorne (commenter)
+ *  @bug No known bugs.
+ */
+
+
 #include "common.h"
 
 void mpi_init(int *p_argc, char ***p_argv)
@@ -63,81 +75,128 @@ void mpi_init(int *p_argc, char ***p_argv)
 
 int main(int argc, char **argv)
 {
+  /* Main function of BFoRe. BFoRe expects only one argument: pat
+  */
   char fname_init[256];
-  if(argc!=2) {
-    printf("Usage: fg_rm.x param_file\n");
+
+  if(argc! = 2)
+  {
+    // Check command line inputs.
+    printf("Usage: bfore.x param_file\n");
     exit(0);
   }
-  sprintf(fname_init,"%s",argv[1]);
 
-  mpi_init(&argc,&argv);
+  // Store parameter file path into fname_init
+  sprintf(fname_init, "%s", argv[1]);
+
+  // Initialize MPI environment.
+  mpi_init(&argc, &argv);
   gsl_set_error_handler_off();
-  ParamBFoRe *par=read_params(fname_init);
 
-  int ii,n_threads;
+  // Read in parameter file to ParamBFoRe struct defined in common.h
+  ParamBFoRe *par = read_params(fname_init);
+
+  // If compiled with openmp then each process checks the number of available
+  // threads.
+  int ii, n_threads;
 #ifdef _WITH_OMP
-  n_threads=omp_get_max_threads();
+  n_threads = omp_get_max_threads();
 #else //_WITH_OMP
   n_threads=1;
 #endif //_WITH_OMP
-  PixelState **pst_old,**pst_new=NULL;
 
-  pst_old=my_malloc(n_threads*sizeof(PixelState *));
-  for(ii=0;ii<n_threads;ii++)
-    pst_old[ii]=pixel_state_new(par);
-  if(par->flag_use_marginal) {
-    pst_new=my_malloc(n_threads*sizeof(PixelState *));
-    for(ii=0;ii<n_threads;ii++)
-      pst_new[ii]=pixel_state_new(par);
+  // Pixel state is initialized. This is defined in common.h
+  PixelState **pst_old, **pst_new=NULL;
+
+  pst_old = my_malloc(n_threads * sizeof(PixelState *));
+  for (ii = 0; ii < n_threads; ii++)
+  {
+    pst_old[ii] = pixel_state_new(par);
+  }
+  // This code seems to be a copy of the previous few lines. Why not just
+  // copy pst_old?
+  if (par -> flag_use_marginal)
+  {
+    pst_new = my_malloc(n_threads * sizeof(PixelState *));
+    for (ii = 0; ii < n_threads; ii++)
+    {
+      pst_new[ii] = pixel_state_new(par);
+    }
   }
 
+// If compiling with openmp and not debugging a single pixel loop through
+// using openmp. This distributes jobs across threads within a particular node.
 #ifdef _WITH_OMP
-#ifndef _DEBUG_SINGLEPIX
-#pragma omp parallel default(none) shared(par,IThread0,NodeThis,pst_old,pst_new)
-#endif //_DEBUG_SINGLEPIX
+  #ifndef _DEBUG_SINGLEPIX
+    #pragma omp parallel default(none) shared(par, IThread0, NodeThis, pst_old, pst_new)
+  #endif //_DEBUG_SINGLEPIX
 #endif //_WITH_OMP
   {
-    int ipix_big,ithr;
+    int ipix_big, ithr;
     unsigned long seed_thr;
     Rng *rng;
+    ithr = 0;
 
-    ithr=0;
 #ifdef _WITH_OMP
-#ifndef _DEBUG_SINGLEPIX
-    ithr=omp_get_thread_num();
-#endif //_DEBUG_SINGLEPIX
+  #ifndef _DEBUG_SINGLEPIX
+    // Get the number of the thread we are in. This is a thread within a node.
+    ithr = omp_get_thread_num();
+  #endif //_DEBUG_SINGLEPIX
 #endif //_WITH_OMP
-    seed_thr=par->seed+IThread0+ithr;
-    rng=init_rng(seed_thr);
+    // seed the thread we are on. IThread0 counts all the threads on the nodes
+    // below us. Then ithr takes us to the current thread. Therefore each
+    // thread in the entire program gets a different seed and all seeds are
+    // sequential. Then seed the rng.
+    seed_thr = par -> seed + IThread0 + ithr;
+    rng = init_rng(seed_thr);
 
+// We now loop over the large pixels over which spectral parameters vary.
+// If we are debugging a single pixel, we do not want to loop across all the
+// pixels to be sampled. If we are using openmp then distribute pixels across
+// threads. If we are not using openmp, and still want to consider all pixels,
+// then use a normal for loop.
 #ifdef _DEBUG_SINGLEPIX
-    ipix_big=par->dbg_ipix;
+    ipix_big = par -> dbg_ipix;
 #else //_DEBUG_SINGLEPIX
-#ifdef _WITH_OMP
-#pragma omp for
-#endif //_WITH_OMP
-    for(ipix_big=par->ipix_0;ipix_big<par->ipix_f;ipix_big++)
+  #ifdef _WITH_OMP
+    #pragma omp for
+  #endif //_WITH_OMP
+    for(ipix_big = par -> ipix_0; ipix_big < par -> ipix_f; ipix_big++)
 #endif //_DEBUG_SINGLEPIX
-      {
-	printf("Node %d, thread %d, pixel %d\n",NodeThis,ithr,ipix_big);
-	if(par->flag_use_marginal)
-	  clean_pixel_from_marginal(par,rng,pst_old[ithr],pst_new[ithr],ipix_big);
-	else
-	  clean_pixel(par,rng,pst_old[ithr],ipix_big);
-      }//end omp for
-    end_rng(rng);
+    {
+	     printf("Node %d, thread %d, pixel %d\n", NodeThis, ithr, ipix_big);
+       if (par -> flag_use_marginal)
+       {
+         clean_pixel_from_marginal(par, rng, pst_old[ithr], pst_new[ithr], ipix_big);
+       }
+       else
+       {
+         clean_pixel(par, rng, pst_old[ithr], ipix_big);
+       }
+     } //end omp for
+     end_rng(rng);
   }//end omp parallel
 
-  for(ii=0;ii<n_threads;ii++)
-    pixel_state_free(pst_old[ii],par);
+  // Now do the cleanup.
+  for (ii = 0; ii < n_threads; ii++)
+  {
+    pixel_state_free(pst_old[ii], par);
+  }
   free(pst_old);
-  if(par->flag_use_marginal) {
-    for(ii=0;ii<n_threads;ii++)
-      pixel_state_free(pst_new[ii],par);
+
+  if (par -> flag_use_marginal)
+  {
+    for (ii = 0; ii < n_threads; ii++)
+    {
+      pixel_state_free(pst_new[ii], par);
+    }
     free(pst_new);
   }
-  if(NodeThis==0)
+  if(NodeThis == 0)
+  {
     printf("Writing output\n");
+  }
+
   write_output(par);
   param_bfore_free(par);
 

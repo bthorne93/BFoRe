@@ -1,37 +1,44 @@
 #include "common.h"
 
-static void init_priors(ParamBFoRe *par,PixelState *pst,int ipix_big)
+static void init_priors(ParamBFoRe *par, PixelState *pst, int ipix_big)
 {
-  pst->prior_mean[par->index_beta_s_t]=par->map_prior_centres[par->index_beta_s_t+par->n_param_max*ipix_big];
-  if(par->flag_beta_s_free) {
-    pst->prior_isigma[par->index_beta_s_t]=1./par->map_prior_widths[par->index_beta_s_t+
-								    par->n_param_max*ipix_big];
-  }    
-  pst->prior_mean[par->index_beta_d_t]=par->map_prior_centres[par->index_beta_d_t+par->n_param_max*ipix_big];
-  if(par->flag_beta_d_free) {
-    pst->prior_isigma[par->index_beta_d_t]=1./par->map_prior_widths[par->index_beta_d_t+
-								    par->n_param_max*ipix_big];
-  }    
-  pst->prior_mean[par->index_temp_d_t]=par->map_prior_centres[par->index_temp_d_t+par->n_param_max*ipix_big];
-  if(par->flag_temp_d_free) {
-    pst->prior_isigma[par->index_temp_d_t]=1./par->map_prior_widths[par->index_temp_d_t+
-								    par->n_param_max*ipix_big];
-  }    
-  if(par->flag_include_polarization && par->flag_independent_polarization) {
-    pst->prior_mean[par->index_beta_s_p]=par->map_prior_centres[par->index_beta_s_p+par->n_param_max*ipix_big];
-    if(par->flag_beta_s_free) {
-      pst->prior_isigma[par->index_beta_s_p]=1./par->map_prior_widths[par->index_beta_s_p+
-								      par->n_param_max*ipix_big];
-    }    
-    pst->prior_mean[par->index_beta_d_p]=par->map_prior_centres[par->index_beta_d_p+par->n_param_max*ipix_big];
-    if(par->flag_beta_d_free) {
-      pst->prior_isigma[par->index_beta_d_p]=1./par->map_prior_widths[par->index_beta_d_p+
-								      par->n_param_max*ipix_big];
-    }    
-    pst->prior_mean[par->index_temp_d_p]=par->map_prior_centres[par->index_temp_d_p+par->n_param_max*ipix_big];
-    if(par->flag_temp_d_free) {
-      pst->prior_isigma[par->index_temp_d_p]=1./par->map_prior_widths[par->index_temp_d_p+
-								      par->n_param_max*ipix_big];
+  pst -> prior_mean[par -> index_beta_s_t] = par -> map_prior_centres[par -> index_beta_s_t + par -> n_param_max * ipix_big];
+
+  if (par->flag_beta_s_free)
+  {
+    pst -> prior_isigma[par -> index_beta_s_t] = 1. / par -> map_prior_widths[par -> index_beta_s_t + par -> n_param_max * ipix_big];
+  }
+
+  pst -> prior_mean[par -> index_beta_d_t] = par -> map_prior_centres[par -> index_beta_d_t + par -> n_param_max * ipix_big];
+
+  if (par -> flag_beta_d_free)
+  {
+    pst -> prior_isigma[par -> index_beta_d_t] = 1. / par -> map_prior_widths[par -> index_beta_d_t + par -> n_param_max * ipix_big];
+  }
+
+  pst -> prior_mean[par -> index_temp_d_t] = par -> map_prior_centres[par -> index_temp_d_t + par -> n_param_max * ipix_big];
+
+  if (par -> flag_temp_d_free)
+  {
+    pst -> prior_isigma[par -> index_temp_d_t] = 1. / par -> map_prior_widths[par -> index_temp_d_t + par->n_param_max*ipix_big];
+  }
+
+  if (par -> flag_include_polarization && par -> flag_independent_polarization)
+  {
+    pst -> prior_mean[par -> index_beta_s_p] = par -> map_prior_centres[par -> index_beta_s_p + par -> n_param_max * ipix_big];
+    if (par -> flag_beta_s_free)
+    {
+      pst -> prior_isigma[par -> index_beta_s_p] = 1. / par -> map_prior_widths[par -> index_beta_s_p + par -> n_param_max * ipix_big];
+    }
+    pst -> prior_mean[par -> index_beta_d_p] = par -> map_prior_centres[par -> index_beta_d_p + par -> n_param_max * ipix_big];
+    if (par -> flag_beta_d_free)
+    {
+      pst -> prior_isigma[par -> index_beta_d_p] = 1. / par -> map_prior_widths[par -> index_beta_d_p + par -> n_param_max * ipix_big];
+    }
+    pst -> prior_mean[par -> index_temp_d_p] = par -> map_prior_centres[par -> index_temp_d_p + par -> n_param_max * ipix_big];
+    if(par -> flag_temp_d_free)
+    {
+      pst -> prior_isigma[par -> index_temp_d_p] = 1. / par -> map_prior_widths[par -> index_temp_d_p + par -> n_param_max * ipix_big];
     }
   }
 }
@@ -39,36 +46,38 @@ static void init_priors(ParamBFoRe *par,PixelState *pst,int ipix_big)
 PixelState *pixel_state_new(ParamBFoRe *par)
 {
   int ip;
-  PixelState *pst=my_malloc(sizeof(PixelState));
-  pst->f_matrix=my_malloc(par->n_pol*par->n_nu*par->n_comp*sizeof(flouble));
-  pst->cov_inv=my_malloc(par->n_sub*par->n_pol*sizeof(gsl_matrix *));
-  pst->vec_mean=my_malloc(par->n_sub*par->n_pol*sizeof(gsl_vector *));
-  pst->prior_mean=my_malloc(par->n_param_max*sizeof(flouble));
-  pst->prior_isigma=my_malloc(par->n_param_max*sizeof(flouble));
-  for(ip=0;ip<par->n_sub*par->n_pol;ip++) {
-    pst->cov_inv[ip]=gsl_matrix_alloc(par->n_comp,par->n_comp);
-    pst->vec_mean[ip]=gsl_vector_alloc(par->n_comp);
+  PixelState *pst = my_malloc(sizeof(PixelState));
+  pst -> f_matrix = my_malloc(par -> n_pol * par -> n_nu * par->n_comp*sizeof(flouble));
+  pst -> cov_inv = my_malloc(par -> n_sub * par -> n_pol * sizeof(gsl_matrix *));
+  pst -> vec_mean = my_malloc(par -> n_sub * par -> n_pol * sizeof(gsl_vector *));
+  pst -> prior_mean = my_malloc(par -> n_param_max * sizeof(flouble));
+  pst -> prior_isigma = my_malloc(par -> n_param_max * sizeof(flouble));
+  for(ip = 0; ip < par -> n_sub * par -> n_pol; ip++)
+  {
+    pst -> cov_inv[ip] = gsl_matrix_alloc(par -> n_comp, par -> n_comp);
+    pst -> vec_mean[ip] = gsl_vector_alloc(par -> n_comp);
   }
-  pst->rand_spec=my_malloc(par->n_spec_vary*sizeof(flouble));
-  pst->vaux=gsl_vector_alloc(par->n_comp);
+  pst -> rand_spec = my_malloc(par -> n_spec_vary * sizeof(flouble));
+  pst -> vaux = gsl_vector_alloc(par -> n_comp);
 
   return pst;
 }
 
-void pixel_state_free(PixelState *pst,ParamBFoRe *par)
+void pixel_state_free(PixelState *pst, ParamBFoRe *par)
 {
   int ip;
-  free(pst->f_matrix);
-  for(ip=0;ip<par->n_sub*par->n_pol;ip++) {
-    gsl_matrix_free(pst->cov_inv[ip]);
-    gsl_vector_free(pst->vec_mean[ip]);
+  free(pst -> f_matrix);
+  for(ip = 0; ip < par -> n_sub * par -> n_pol; ip++)
+  {
+    gsl_matrix_free(pst -> cov_inv[ip]);
+    gsl_vector_free(pst -> vec_mean[ip]);
   }
-  free(pst->cov_inv);
-  free(pst->vec_mean);
-  free(pst->rand_spec);
-  free(pst->prior_mean);
-  free(pst->prior_isigma);
-  gsl_vector_free(pst->vaux);
+  free(pst -> cov_inv);
+  free(pst -> vec_mean);
+  free(pst -> rand_spec);
+  free(pst -> prior_mean);
+  free(pst -> prior_isigma);
+  gsl_vector_free(pst -> vaux);
   free(pst);
 }
 
@@ -152,7 +161,7 @@ static flouble chi2_prior_correctvolume(ParamBFoRe *par,PixelState *pst,
 	  }
 	}
       }
-      
+
       gsl_linalg_cholesky_decomp(mat_here);
       for(ic1=0;ic1<par->n_comp;ic1++)
 	chi2+=log(gsl_matrix_get(mat_here,ic1,ic1));
@@ -317,7 +326,7 @@ static void draw_amplitudes(ParamBFoRe *par,Rng *rng,flouble *data,flouble *nois
   int ipix;
 
   analyze_linear_chi2(par,data,noise_w,x_spec,pst);
-  
+
   for(ipix=0;ipix<par->n_sub;ipix++) {
     int ipol;
     for(ipol=0;ipol<par->n_pol;ipol++) {
@@ -550,7 +559,7 @@ void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big)
 	  gsl_matrix_set(cov_spec,ic1,ic2,gsl_matrix_get(cov_spec,ic1,ic2)+cov_plus);
 	}
       }
-      
+
       ratio_accepted+=accepted;
       if(i_sample%par->n_update_covar==par->n_update_covar-1) { //Update covariance
 	if(ratio_accepted<=5) { //Check if too few samples were accepted
@@ -566,7 +575,7 @@ void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big)
 	  //Compute mean in this batch
 	  ratio_accepted/=par->n_update_covar;
 	  dbg_printf(do_print,"%d Acceptance ratio %.2lf\n",i_sample,ratio_accepted);
-	  
+
 	  dbg_printf(do_print,"Current mean :");
 	  for(ic1=0;ic1<par->n_spec_vary;ic1++) {
 	    mean_spec[ic1]/=par->n_update_covar;
@@ -594,7 +603,7 @@ void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big)
 			       gsl_matrix_get(cov_spec,ic1,ic2));
 	    }
 	  }
-	  
+
 	  //Save diagonal
 	  for(ic1=0;ic1<par->n_spec_vary;ic1++)
 	    mean_spec[ic1]=sqrt(gsl_matrix_get(cov_spec,ic1,ic1));
@@ -613,7 +622,7 @@ void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big)
 	    }
 	  }
 	}
-	
+
 	gsl_matrix_set_zero(cov_spec);
 	for(ic1=0;ic1<par->n_spec_vary;ic1++)
 	  mean_spec[ic1]=0;
@@ -736,27 +745,27 @@ void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big)
   gsl_matrix_free(cov_spec);
 }
 
-void clean_pixel_from_marginal(ParamBFoRe *par,Rng *rng,PixelState *pst_old,
-			       PixelState *pst_new,int ipix_big)
+void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
+  PixelState *pst_new, int ipix_big)
 {
-  int i_sample,ic1,ic2,ipix,n_updated,err,accepted;
+  int i_sample, ic1, ic2, ipix, n_updated, err, accepted;
   flouble ratio_accepted;
-  flouble stepping_factor=1.;
-  int ip_spc=par->n_spec_vary*ipix_big;
-  int id_cell=ipix_big*par->n_sub*par->n_pol;
-  flouble *data=&(par->maps_data[id_cell*par->n_nu]);
-  flouble *noise_w=&(par->maps_noise_weight[id_cell*par->n_nu]);
-  flouble *amps_mean=&(par->map_components_mean[id_cell*par->n_comp]);
-  flouble *amps_covar=&(par->map_components_covar[id_cell*par->n_comp*par->n_comp]);
-  flouble *x_spec_old=my_malloc(par->n_param_max*sizeof(flouble));
-  flouble *x_spec_ml=my_malloc(par->n_param_max*sizeof(flouble));
-  flouble *x_spec_new=my_malloc(par->n_param_max*sizeof(flouble));
-  gsl_matrix *mat_step=gsl_matrix_alloc(par->n_spec_vary,par->n_spec_vary);
-  gsl_matrix *cov_save=gsl_matrix_alloc(par->n_spec_vary,par->n_spec_vary);
-  gsl_matrix *cov_spec=gsl_matrix_alloc(par->n_spec_vary,par->n_spec_vary);
-  flouble *mean_spec=my_calloc(par->n_spec_vary,sizeof(flouble));
-  flouble factor_rescale=2.4/sqrt((double)(par->n_spec_vary));
-  int do_print=(ipix_big==par->dbg_ipix);
+  flouble stepping_factor = 1.;
+  int ip_spc = par -> n_spec_vary * ipix_big;
+  int id_cell = ipix_big * par -> n_sub * par -> n_pol;
+  flouble *data = &(par -> maps_data[id_cell * par -> n_nu]);
+  flouble *noise_w = &(par -> maps_noise_weight[id_cell * par -> n_nu]);
+  flouble *amps_mean = &(par -> map_components_mean[id_cell * par -> n_comp]);
+  flouble *amps_covar = &(par -> map_components_covar[id_cell * par -> n_comp * par -> n_comp]);
+  flouble *x_spec_old = my_malloc(par -> n_param_max * sizeof(flouble));
+  flouble *x_spec_ml = my_malloc(par -> n_param_max * sizeof(flouble));
+  flouble *x_spec_new = my_malloc(par -> n_param_max * sizeof(flouble));
+  gsl_matrix *mat_step = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
+  gsl_matrix *cov_save = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
+  gsl_matrix *cov_spec = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
+  flouble *mean_spec = my_calloc(par -> n_spec_vary, sizeof(flouble));
+  flouble factor_rescale = 2.4 / sqrt((double)(par -> n_spec_vary));
+  int do_print = (ipix_big == par -> dbg_ipix);
 
   init_priors(par,pst_old,ipix_big);
   init_priors(par,pst_new,ipix_big);
