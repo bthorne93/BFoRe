@@ -36,7 +36,7 @@ void dbg_printf(int do_print,char *fmt,...)
   if(do_print) {
     va_list args;
     char msg[256];
-    
+
     va_start(args,fmt);
     vsprintf(msg,fmt,args);
     va_end(args);
@@ -53,7 +53,7 @@ void report_error(int level,char *fmt,...)
   va_start(args,fmt);
   vsprintf(msg,fmt,args);
   va_end(args);
-  
+
   if(level) {
     fprintf(stderr," Fatal error: %s",msg);
     exit(level);
@@ -89,14 +89,14 @@ FILE *my_fopen(const char *path,const char *mode)
 
 static ParamBFoRe *param_bfore_new(void)
 {
-  ParamBFoRe *par=(ParamBFoRe *)my_malloc(sizeof(ParamBFoRe));
+  ParamBFoRe *par = (ParamBFoRe *)my_malloc(sizeof(ParamBFoRe));
 
-  par->nside=256;
-  par->nside_spec=32;
-  par->n_side_sub=8;
-  par->n_sub=64;
-  par->n_pix=786432;
-  
+  par -> nside=256;
+  par -> nside_spec=32;
+  par -> n_side_sub=8;
+  par -> n_sub=64;
+  par -> n_pix=786432;
+
   sprintf(par->input_data_prefix,"default");
   par->maps_data=NULL;
 
@@ -123,7 +123,7 @@ static ParamBFoRe *param_bfore_new(void)
   sprintf(par->fname_nulist,"default");
   par->n_nu=-1;
   par->freqs=NULL;
-  
+
   par->flag_include_polarization=0;
   par->n_pol=1;
 
@@ -150,7 +150,7 @@ static ParamBFoRe *param_bfore_new(void)
   par->index_beta_d_p=-1;
   par->index_temp_d_t=-1;
   par->index_temp_d_p=-1;
-  
+
   par->beta_s_step=0.1;
   par->beta_d_step=0.1;
   par->temp_d_step=0.1;
@@ -167,7 +167,7 @@ static ParamBFoRe *param_bfore_new(void)
 
   par->dbg_ipix=0;
   par->dbg_extra=NULL;
-  
+
   return par;
 }
 
@@ -192,7 +192,7 @@ static void param_bfore_print(ParamBFoRe *par)
   printf(" - Frequency list: %s\n",par->fname_nulist);
   if(par->flag_include_polarization)
     printf(" - Will include T, Q and U\n");
-  else 
+  else
     printf(" - Will only include T\n");
   if(par->flag_independent_polarization)
     printf(" - Independent spectral parameters for polarization\n");
@@ -208,12 +208,12 @@ static void param_bfore_print(ParamBFoRe *par)
     printf("    beta_s : (%d) [%s,",par->index_beta_s_t,par->input_beta_s_t_prior);
     printf(",%s]",par->input_beta_s_p_prior);
     printf(", D(beta_s) = %.3lf\n",par->beta_s_step);
-  }      
+  }
   if(par->flag_include_dust && par->flag_beta_d_free) {
     printf("    beta_d : (%d) [%s,",par->index_beta_d_t,par->input_beta_d_t_prior);
     printf(",%s]",par->input_beta_d_p_prior);
     printf(", D(beta_d) = %.3lf\n",par->beta_d_step);
-  }      
+  }
   if(par->flag_include_dust && par->flag_temp_d_free) {
     printf("    temp_d : (%d)[%s,",par->index_temp_d_t,par->input_temp_d_t_prior);
     printf(",%s]",par->input_temp_d_p_prior);
@@ -240,16 +240,16 @@ static void param_bfore_print(ParamBFoRe *par)
 
 void param_bfore_free(ParamBFoRe *par)
 {
-  free(par->maps_data);
-  free(par->maps_noise_weight);
-  free(par->map_components_mean);
-  free(par->map_components_covar);
-  free(par->map_prior_centres);
-  free(par->map_prior_widths);
-  free(par->map_indices_mean);
-  free(par->map_indices_covar);
-  free(par->map_chi2);
-  free(par->freqs);
+  free(par -> maps_data);
+  free(par -> maps_noise_weight);
+  free(par -> map_components_mean);
+  free(par -> map_components_covar);
+  free(par -> map_prior_centres);
+  free(par -> map_prior_widths);
+  free(par -> map_indices_mean);
+  free(par -> map_indices_covar);
+  free(par -> map_chi2);
+  free(par -> freqs);
   free(par);
 }
 
@@ -257,20 +257,27 @@ ParamBFoRe *read_params(char *fname)
 {
   FILE *fi;
   char fname_in[256];
-  int n_lin,ii;
+  int n_lin, ii;
   long nside_dum;
-  ParamBFoRe *par=param_bfore_new();
+  ParamBFoRe *par = param_bfore_new();
   flouble *map_dum;
 
   //Read parameters from file
-  if(NodeThis==0)
+  if (NodeThis == 0)
+  {
     printf("*** Reading run parameters \n");
-  fi=my_fopen(fname,"r");
-  n_lin=my_linecount(fi); rewind(fi);
-  for(ii=0;ii<n_lin;ii++) {
-    char s0[512],s1[64],s2[256];
-    if(fgets(s0,sizeof(s0),fi)==NULL)
-      report_error(1,"Error reading file %s, line %d\n",fname,ii+1);
+  }
+
+  fi = my_fopen(fname, "r");
+  n_lin = my_linecount(fi); rewind(fi);
+
+  for (ii = 0; ii < n_lin; ii++)
+  {
+    char s0[512], s1[64], s2[256];
+    if(fgets(s0, sizeof(s0), fi) == NULL)
+    {
+      report_error(1, "Error reading file %s, line %d \n", fname, ii + 1);
+    }
     if((s0[0]=='#')||(s0[0]=='\n')) continue;
     int sr=sscanf(s0,"%s %s",s1,s2);
     if(sr!=2)
@@ -323,7 +330,7 @@ ParamBFoRe *read_params(char *fname)
     else if(!strcmp(s1,"nu0_dust="))
       par->nu0_d=atof(s2);
     else if(!strcmp(s1,"nside="))
-      par->nside=atoi(s2); 
+      par->nside=atoi(s2);
     else if(!strcmp(s1,"nside_spec="))
       par->nside_spec=atoi(s2);
     else if(!strcmp(s1,"seed="))
@@ -353,280 +360,466 @@ ParamBFoRe *read_params(char *fname)
   }
   fclose(fi);
 
-  if(par->flag_use_marginal)
-    par->flag_write_samples=0;
+  if (par -> flag_use_marginal)
+  {
+    par -> flag_write_samples = 0;
+  }
+  // Calculate some useful quantities.
+  // n_side_sub is the ratio of the base and spectral parameter nsides.
+  par -> n_side_sub = par -> nside / par -> nside_spec;
+  // n_sub is the square of the ratio between nsides. This is also the
+  // ratio of the number of pixels between base resolution and spectral
+  // parameter resolution. Therefore, there will be n_sub small pixels per
+  // large pixel.
+  par -> n_sub = par -> n_side_sub * par -> n_side_sub;
+  // n_pix is the number of pixels at base resolution.
+  par -> n_pix = 12 * par -> nside * par -> nside;
+  // n_pix_spec is the number of pixels at spectral parameter resolution.
+  par -> n_pix_spec = 12 * par -> nside_spec * par -> nside_spec;
+  // n_samples_burn calculates the number of samples to use as burn-in as the\
+  // param file states a burn fraction.
+  par -> n_samples_burn=(int)(par -> frac_samples_burn * par -> n_samples);
 
-  par->n_side_sub=par->nside/par->nside_spec;
-  par->n_sub=par->n_side_sub*par->n_side_sub;
-  par->n_pix=12*par->nside*par->nside;
-  par->n_pix_spec=12*par->nside_spec*par->nside_spec;
-
-  par->n_samples_burn=(int)(par->frac_samples_burn*par->n_samples);
-  if(par->n_samples_burn>0.5*par->n_samples)
+  if (par -> n_samples_burn > 0.5 * par -> n_samples)
+  {
     report_error(1,"Wrong burning fraction %lE\n",par->frac_samples_burn);
-  if(par->n_samples_burn<2*par->n_update_covar)
+  }
+  if (par -> n_samples_burn < 2 * par -> n_update_covar)
+  {
     report_error(1,"#burning samples should be larger than the covariance update period\n");
+  }
 
-  if(par->flag_include_polarization==0)
-    par->flag_independent_polarization=0;
+  // Check whether to include polarization. It is not clear why this step is
+  // necessary (just turns one bool into another?)
+  if (par -> flag_include_polarization == 0)
+  {
+    par -> flag_independent_polarization = 0;
+  }
 
-  fi=my_fopen(par->fname_nulist,"r");
-  par->n_nu=my_linecount(fi); rewind(fi);
-  par->freqs=my_malloc(par->n_nu*sizeof(flouble));
-  for(ii=0;ii<par->n_nu;ii++) {
+  // Get number of frequency channels by counting lines in file containing
+  // instrument characteristics.
+  fi = my_fopen(par -> fname_nulist, "r");
+  par -> n_nu = my_linecount(fi); rewind(fi);
+
+  // Get the frequencies themselves by reading the instrument characteristics
+  // file.
+  par -> freqs = my_malloc(par -> n_nu * sizeof(flouble));
+  for (ii = 0; ii < par -> n_nu; ii++)
+  {
     flouble dum;
 #ifdef _SPREC
-    int stat=fscanf(fi,"%f %f %f %f %f\n",&dum,&(par->freqs[ii]),&dum,&dum,&dum);
+    int stat = fscanf(fi, "%f %f %f %f %f\n", &dum, &(par -> freqs[ii]), &dum, &dum, &dum);
 #else //_SPREC
-    int stat=fscanf(fi,"%lf %lf %lf %lf %lf\n",&dum,&(par->freqs[ii]),&dum,&dum,&dum);
+    int stat = fscanf(fi, "%lf %lf %lf %lf %lf \n", &dum, &(par -> freqs[ii]), &dum, &dum, &dum);
 #endif //_SPREC
-    if(stat!=5)
-      report_error(1,"Error reading file %s, line %d\n",par->fname_nulist,ii+1);
+    if(stat != 5)
+      report_error(1, "Error reading file %s, line %d \n", par -> fname_nulist, ii + 1);
   }
   fclose(fi);
 
-  if(par->flag_include_polarization)
-    par->n_pol=3;
+  // Check if want to include polarization.
+  if (par -> flag_include_polarization)
+  {
+    par -> n_pol = 3;
+  }
   else
-    par->n_pol=1;
-
-  par->n_comp=0;
-  if(par->flag_include_cmb) {
-    par->index_cmb=par->n_comp;
-    par->n_comp++;
-  }
-  if(par->flag_include_synchrotron) {
-    par->index_synchrotron=par->n_comp;
-    par->n_comp++;
-  }
-  if(par->flag_include_dust) {
-    par->index_dust=par->n_comp;
-    par->n_comp++;
+  {
+    par -> n_pol = 1;
   }
 
-  par->n_param_max=3;
-  if(par->flag_independent_polarization)
-    par->n_param_max*=2;
-    
-  int index_novary=par->n_param_max;
-  par->n_spec_vary=0;
-  if(par->flag_include_synchrotron) {
-    if(par->flag_beta_s_free)
-      par->index_beta_s_t=par->n_spec_vary++;
-    else
-      par->index_beta_s_t=--index_novary;
+  // Check which components are requested and increment component counter.
+  par -> n_comp = 0;
+  if (par -> flag_include_cmb)
+  {
+    par -> index_cmb = par -> n_comp;
+    par -> n_comp++;
   }
-  if(par->flag_include_dust) {
-    if(par->flag_beta_d_free)
-      par->index_beta_d_t=par->n_spec_vary++;
-    else
-      par->index_beta_d_t=--index_novary;
-    if(par->flag_temp_d_free)
-      par->index_temp_d_t=par->n_spec_vary++;
-    else
-      par->index_temp_d_t=--index_novary;
+  if (par -> flag_include_synchrotron)
+  {
+    par -> index_synchrotron = par -> n_comp;
+    par -> n_comp++;
   }
-  if(par->flag_include_polarization && par->flag_independent_polarization) {
-    if(par->flag_include_synchrotron) {
-      if(par->flag_beta_s_free)
-	par->index_beta_s_p=par->n_spec_vary++;
-      else
-	par->index_beta_s_p=--index_novary;
+  if (par->flag_include_dust)
+  {
+    par -> index_dust = par -> n_comp;
+    par -> n_comp++;
+  }
+
+  // Maxmum number of parameters in the model. This is doubled if polarization
+  // parameter are independent of temperature parameters.
+  par -> n_param_max = 3;
+  if (par -> flag_independent_polarization)
+  {
+    par -> n_param_max *= 2;
+  }
+
+  // Define an index referring to the parameter that will not be varied.
+  int index_novary = par -> n_param_max;
+  par -> n_spec_vary = 0;
+
+  // Now check which parameters are being fitted, and assign a unique index to
+  // them which will be used throughout the rest of the code.
+  if (par -> flag_include_synchrotron)
+  {
+    if (par -> flag_beta_s_free)
+    {
+      // Assign beta_s_t 0 and increment n_spec_vary.
+      par -> index_beta_s_t = par -> n_spec_vary++;
     }
-    if(par->flag_include_dust) {
-      if(par->flag_beta_d_free)
-	par->index_beta_d_p=par->n_spec_vary++;
-      else
-	par->index_beta_d_p=--index_novary;
-      if(par->flag_temp_d_free)
-	par->index_temp_d_p=par->n_spec_vary++;
-      else
-	par->index_temp_d_p=--index_novary;
+    else
+    {
+      // If not fitting this parameter assign n_param_max and decrement
+      // index_novary
+      par -> index_beta_s_t = --index_novary;
     }
   }
-  else {
-    par->index_beta_s_p=par->index_beta_s_t;
-    par->index_beta_d_p=par->index_beta_d_t;
-    par->index_temp_d_p=par->index_temp_d_t;
+  // Repeat for dust ...
+  if (par -> flag_include_dust)
+  {
+    if (par -> flag_beta_d_free)
+    {
+      par -> index_beta_d_t = par -> n_spec_vary++;
+    }
+    else
+    {
+      par -> index_beta_d_t = --index_novary;
+    }
+    if (par -> flag_temp_d_free)
+    {
+      par -> index_temp_d_t = par -> n_spec_vary++;
+    }
+    else
+    {
+      par -> index_temp_d_t = --index_novary;
+    }
   }
-  par->n_dof_pix=par->n_sub*par->n_pol*(par->n_nu-par->n_comp)-par->n_spec_vary;
 
-  //Allocate maps
-  if(NodeThis==0)
+  // Now deal with the polarization parameters.
+  if (par -> flag_include_polarization && par -> flag_independent_polarization)
+  {
+    if (par -> flag_include_synchrotron)
+    {
+      if (par -> flag_beta_s_free)
+      {
+	       par -> index_beta_s_p = par -> n_spec_vary++;
+      }
+      else
+      {
+	     par -> index_beta_s_p = --index_novary;
+      }
+    }
+    if (par -> flag_include_dust)
+    {
+      if (par -> flag_beta_d_free)
+      {
+	       par -> index_beta_d_p = par -> n_spec_vary++;
+      }
+      else
+      {
+	       par -> index_beta_d_p = --index_novary;
+       }
+      if (par -> flag_temp_d_free)
+      {
+	       par -> index_temp_d_p = par->n_spec_vary++;
+      }
+      else
+      {
+	       par -> index_temp_d_p = --index_novary;
+      }
+    }
+  }
+  else
+  {
+    par -> index_beta_s_p = par -> index_beta_s_t;
+    par -> index_beta_d_p = par -> index_beta_d_t;
+    par -> index_temp_d_p = par -> index_temp_d_t;
+  }
+
+  // Calclate the degrees of freedom per big pixel. This is the number of small
+  // pixels times the number of fields (T, Q, U), times (number of
+  // frequencies minus the number of components) minus the number of spectral
+  // parameters.
+  par -> n_dof_pix = par -> n_sub * par -> n_pol * (par -> n_nu - par -> n_comp) - par -> n_spec_vary;
+
+  // Allocate maps
+  if (NodeThis == 0)
+  {
     printf("Allocating memory for maps\n");
-  par->maps_data=my_malloc(par->n_pix*par->n_pol*par->n_nu*sizeof(flouble));
-  par->maps_noise_weight=my_malloc(par->n_pix*par->n_pol*par->n_nu*sizeof(flouble));
-  par->map_prior_centres=my_calloc(par->n_pix_spec*par->n_param_max,sizeof(flouble));
-  par->map_prior_widths=my_calloc(par->n_pix_spec*par->n_param_max,sizeof(flouble));
-  par->map_components_mean=my_calloc(par->n_pix*par->n_pol*par->n_comp,sizeof(flouble));
-  par->map_components_covar=my_calloc(par->n_pix*par->n_pol*par->n_comp*par->n_comp,
-				      sizeof(flouble));
-  par->map_indices_mean=my_calloc(par->n_pix_spec*par->n_spec_vary,sizeof(flouble));
-  par->map_indices_covar=my_calloc(par->n_pix_spec*par->n_spec_vary*par->n_spec_vary,
-				   sizeof(flouble));
-  par->map_chi2=my_calloc(par->n_pix,sizeof(flouble));
-  par->dbg_extra=my_malloc(par->n_spec_vary*(par->n_samples+par->n_samples_burn)*
-			   sizeof(flouble));
-
-  //Read input maps
-  if(NodeThis==0)
-    printf("Reading data from %sXXX.fits\n",par->input_data_prefix);
-  for(ii=0;ii<par->n_nu;ii++) {
-    int jj;
-    sprintf(fname_in,"%s%03d.fits",par->input_data_prefix,ii+1);
-    for(jj=0;jj<par->n_pol;jj++) {
-      int ip;
-      map_dum=he_read_healpix_map(fname_in,&nside_dum,jj);
-      if(nside_dum!=par->nside)
-	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ip=0;ip<par->n_pix;ip++)
-	par->maps_data[ii+par->n_nu*(jj+par->n_pol*ip)]=map_dum[ip];
-      free(map_dum);
-    }
   }
 
-  if(NodeThis==0)
-    printf("Reading noise from %sXXX.fits\n",par->input_noise_prefix);
-  flouble amin2_per_pix=4*M_PI*pow(180*60/M_PI,2)/par->n_pix;
-  for(ii=0;ii<par->n_nu;ii++) {
+  // Input data maps, with size n_pix x n_pol * n_nu.
+  par -> maps_data = my_malloc(par -> n_pix * par -> n_pol * par -> n_nu * sizeof(flouble));
+  // Noise weight maps with the same size.
+  par -> maps_noise_weight = my_malloc(par -> n_pix * par -> n_pol * par -> n_nu * sizeof(flouble));
+  // prior mean maps with size n_pix_spex x n_param_max.
+  par -> map_prior_centres = my_calloc(par -> n_pix_spec * par -> n_param_max, sizeof(flouble));
+  // prior widths with same size as mean.
+  par -> map_prior_widths = my_calloc(par -> n_pix_spec * par -> n_param_max, sizeof(flouble));
+  // an empty array to contain the resulting mean posterior for the amplitudes.
+  par -> map_components_mean = my_calloc(par -> n_pix * par -> n_pol * par -> n_comp, sizeof(flouble));
+  // an empty array for the widths of the amplitude posteriors.
+  par -> map_components_covar = my_calloc(par -> n_pix * par -> n_pol * par -> n_comp * par -> n_comp, sizeof(flouble));
+  // an empty array for the spectral parameter mean posteriors.
+  par -> map_indices_mean = my_calloc(par -> n_pix_spec * par -> n_spec_vary, sizeof(flouble));
+  // an empty array for the spectral parameter posterior widths.
+  par -> map_indices_covar = my_calloc(par -> n_pix_spec * par -> n_spec_vary * par -> n_spec_vary, sizeof(flouble));
+  // an empty array for the chi2 maps.
+  par -> map_chi2 = my_calloc(par -> n_pix, sizeof(flouble));
+  // an empty array for the debugging.
+  par -> dbg_extra = my_malloc(par -> n_spec_vary * (par -> n_samples + par -> n_samples_burn) * sizeof(flouble));
+
+  // Read input maps from file.
+  if (NodeThis == 0)
+  {
+    printf("Reading data from %sXXX.fits \n", par -> input_data_prefix);
+  }
+  // loop over the different frequencies observed.
+  for (ii = 0; ii < par -> n_nu; ii++)
+  {
     int jj;
-    sprintf(fname_in,"%s%03d.fits",par->input_noise_prefix,ii+1);
-    for(jj=0;jj<par->n_pol;jj++) {
+    sprintf(fname_in, "%s%03d.fits", par -> input_data_prefix, ii + 1);
+    // loop over the fields (T, Q, U).
+    for (jj = 0; jj < par -> n_pol; jj++)
+    {
       int ip;
-      map_dum=he_read_healpix_map(fname_in,&nside_dum,jj);
-      if(nside_dum!=par->nside)
-	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ip=0;ip<par->n_pix;ip++) {
-	par->maps_noise_weight[ii+par->n_nu*(jj+par->n_pol*ip)]=
-	  amin2_per_pix/(map_dum[ip]*map_dum[ip]);
+      // read jj^th field of the fname_in map.
+      map_dum = he_read_healpix_map(fname_in, &nside_dum, jj);
+      if (nside_dum != par -> nside)
+      {
+	       report_error(1, "Read wrong nside\n");
+      }
+      // convert from ring to nested ordering.
+      he_ring2nest_inplace(map_dum, nside_dum);
+      // loop over all the pixels and fill the corresponding part of the
+      // ParamBFoRe struct. Note that ii is the frequency iteration, jj is the
+      // field iteration, and ip is the pixel iteration.
+      for (ip = 0; ip < par -> n_pix; ip++)
+      {
+	       par -> maps_data[ii + par -> n_nu * (jj + par -> n_pol * ip)] = map_dum[ip];
       }
       free(map_dum);
     }
   }
 
-  //Set prior
-  if(NodeThis==0)
-    printf("Reading prior maps\n");
-  //beta_s T,P
-  if(par->flag_include_synchrotron) {
-    map_dum=he_read_healpix_map(par->input_beta_s_t_prior,&nside_dum,0);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_centres[par->index_beta_s_t+par->n_param_max*ii]=map_dum[ii];
-    free(map_dum);
-    map_dum=he_read_healpix_map(par->input_beta_s_t_prior,&nside_dum,1);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_widths[par->index_beta_s_t+par->n_param_max*ii]=map_dum[ii];
-    free(map_dum);
-    if(par->flag_include_polarization && par->flag_independent_polarization) {
-      map_dum=he_read_healpix_map(par->input_beta_s_p_prior,&nside_dum,0);
-      if(nside_dum!=par->nside_spec)
-	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_centres[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
-      free(map_dum);
-      map_dum=he_read_healpix_map(par->input_beta_s_p_prior,&nside_dum,1);
-      if(nside_dum!=par->nside_spec)
-	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_widths[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
+  if (NodeThis == 0)
+  {
+    printf("Reading noise from %sXXX.fits\n", par -> input_noise_prefix);
+  }
+
+  flouble amin2_per_pix = 4 * M_PI * pow(180 * 60 / M_PI, 2) / par -> n_pix;
+
+  // Now do the same for the noise maps ...
+  for (ii = 0; ii < par -> n_nu; ii++)
+  {
+    int jj;
+    sprintf(fname_in, "%s%03d.fits", par -> input_noise_prefix, ii + 1);
+    for (jj = 0; jj < par -> n_pol; jj++)
+    {
+      int ip;
+      map_dum = he_read_healpix_map(fname_in, &nside_dum, jj);
+      if (nside_dum != par -> nside)
+	    {
+        report_error(1, "Read wrong nside\n");
+      }
+      he_ring2nest_inplace(map_dum, nside_dum);
+      for (ip = 0; ip < par -> n_pix; ip++)
+      {
+	       par -> maps_noise_weight[ii + par -> n_nu * (jj + par -> n_pol * ip)]=
+  amin2_per_pix / (map_dum[ip] * map_dum[ip]);
+      }
       free(map_dum);
     }
   }
-  if(par->flag_include_dust) {
-    //beta_d T,P
-    map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,0);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_centres[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
+
+  // And now do the same for the prior maps.
+  if (NodeThis == 0)
+  {
+    printf("Reading prior maps\n");
+  }
+  //beta_s T,P
+  if (par -> flag_include_synchrotron)
+  {
+    map_dum = he_read_healpix_map(par -> input_beta_s_t_prior, &nside_dum, 0);
+    if (nside_dum != par -> nside_spec)
+    {
+      report_error(1, "Read wrong nside\n");
+    }
+    he_ring2nest_inplace(map_dum, nside_dum);
+    for (ii = 0; ii < par -> n_pix_spec; ii++)
+    {
+      par -> map_prior_centres[par -> index_beta_s_t + par -> n_param_max * ii] = map_dum[ii];
+    }
     free(map_dum);
-    map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,1);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_widths[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
+    map_dum = he_read_healpix_map(par -> input_beta_s_t_prior, &nside_dum, 1);
+    if (nside_dum != par -> nside_spec)
+    {
+      report_error(1, "Read wrong nside\n");
+    }
+    he_ring2nest_inplace(map_dum, nside_dum);
+
+    for (ii = 0; ii < par -> n_pix_spec; ii++)
+    {
+      par -> map_prior_widths[par -> index_beta_s_t + par -> n_param_max * ii] = map_dum[ii];
+    }
     free(map_dum);
-    if(par->flag_include_polarization && par->flag_independent_polarization) {
-      map_dum=he_read_healpix_map(par->input_beta_d_p_prior,&nside_dum,0);
-      if(nside_dum!=par->nside_spec)
-	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_centres[par->index_beta_d_p+par->n_param_max*ii]=map_dum[ii];
+    if (par -> flag_include_polarization && par -> flag_independent_polarization)
+    {
+      map_dum = he_read_healpix_map(par -> input_beta_s_p_prior, &nside_dum, 0);
+      if (nside_dum != par -> nside_spec)
+      {
+	       report_error(1,"Read wrong nside\n");
+      }
+      he_ring2nest_inplace(map_dum, nside_dum);
+      for (ii = 0; ii < par -> n_pix_spec; ii++)
+      {
+	       par -> map_prior_centres[par -> index_beta_s_p + par -> n_param_max * ii] = map_dum[ii];
+      }
       free(map_dum);
-      map_dum=he_read_healpix_map(par->input_beta_d_p_prior,&nside_dum,1);
-      if(nside_dum!=par->nside_spec)
-	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_widths[par->index_beta_d_p+par->n_param_max*ii]=map_dum[ii];
+      map_dum = he_read_healpix_map(par -> input_beta_s_p_prior, &nside_dum, 1);
+      if(nside_dum != par -> nside_spec)
+      {
+	       report_error(1,"Read wrong nside\n");
+      }
+      he_ring2nest_inplace(map_dum, nside_dum);
+      for(ii = 0; ii < par -> n_pix_spec; ii++)
+      {
+	       par->map_prior_widths[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
+      }
+      free(map_dum);
+    }
+  }
+
+  if (par -> flag_include_dust)
+  {
+    //beta_d T,P
+    map_dum = he_read_healpix_map(par -> input_beta_d_t_prior, &nside_dum, 0);
+    if (nside_dum != par -> nside_spec)
+    {
+      report_error(1, "Read wrong nside\n");
+    }
+    he_ring2nest_inplace(map_dum, nside_dum);
+    for (ii = 0; ii < par -> n_pix_spec; ii++)
+    {
+      par->map_prior_centres[par->index_beta_d_t+par->n_param_max*ii]=map_dum[ii];
+    }
+    free(map_dum);
+    map_dum = he_read_healpix_map(par -> input_beta_d_t_prior, &nside_dum, 1);
+    if (nside_dum != par -> nside_spec)
+    {
+      report_error(1,"Read wrong nside\n");
+    }
+    he_ring2nest_inplace(map_dum, nside_dum);
+    for (ii = 0; ii < par -> n_pix_spec; ii++)
+    {
+      par -> map_prior_widths[par -> index_beta_d_t + par -> n_param_max * ii] = map_dum[ii];
+    }
+    free(map_dum);
+    if (par -> flag_include_polarization && par -> flag_independent_polarization)
+    {
+      map_dum = he_read_healpix_map(par -> input_beta_d_p_prior, &nside_dum, 0);
+      if (nside_dum != par -> nside_spec)
+      {
+        report_error(1, "Read wrong nside\n");
+      }
+      he_ring2nest_inplace(map_dum, nside_dum);
+      for (ii = 0; ii < par -> n_pix_spec; ii++)
+      {
+        par -> map_prior_centres[par -> index_beta_d_p + par -> n_param_max * ii] = map_dum[ii];
+      }
+      free(map_dum);
+      map_dum = he_read_healpix_map(par -> input_beta_d_p_prior, &nside_dum, 1);
+      if (nside_dum != par -> nside_spec)
+      {
+	       report_error(1, "Read wrong nside\n");
+      }
+      he_ring2nest_inplace(map_dum, nside_dum);
+      for (ii = 0; ii < par -> n_pix_spec; ii++)
+      {
+	       par -> map_prior_widths[par -> index_beta_d_p + par -> n_param_max * ii] = map_dum[ii];
+      }
       free(map_dum);
     }
     //temp_d T,P
-    map_dum=he_read_healpix_map(par->input_temp_d_t_prior,&nside_dum,0);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_centres[par->index_temp_d_t+par->n_param_max*ii]=map_dum[ii];
+    map_dum = he_read_healpix_map(par -> input_temp_d_t_prior, &nside_dum, 0);
+    if (nside_dum != par -> nside_spec)
+    {
+      report_error(1, "Read wrong nside\n");
+    }
+    he_ring2nest_inplace(map_dum, nside_dum);
+    for (ii = 0; ii < par -> n_pix_spec; ii++)
+    {
+      par -> map_prior_centres[par -> index_temp_d_t + par -> n_param_max * ii] = map_dum[ii];
+    }
     free(map_dum);
-    map_dum=he_read_healpix_map(par->input_temp_d_t_prior,&nside_dum,1);
-    if(nside_dum!=par->nside_spec)
-      report_error(1,"Read wrong nside\n");
-    he_ring2nest_inplace(map_dum,nside_dum);
-    for(ii=0;ii<par->n_pix_spec;ii++)
-      par->map_prior_widths[par->index_temp_d_t+par->n_param_max*ii]=map_dum[ii];
+    map_dum = he_read_healpix_map(par -> input_temp_d_t_prior, &nside_dum, 1);
+    if (nside_dum != par -> nside_spec)
+    {
+      report_error(1, "Read wrong nside\n");
+    }
+    he_ring2nest_inplace(map_dum, nside_dum);
+    for(ii = 0; ii < par -> n_pix_spec; ii++)
+    {
+      par -> map_prior_widths[par -> index_temp_d_t + par -> n_param_max * ii] = map_dum[ii];
+    }
     free(map_dum);
-    if(par->flag_include_polarization && par->flag_independent_polarization) {
-      map_dum=he_read_healpix_map(par->input_temp_d_p_prior,&nside_dum,0);
-      if(nside_dum!=par->nside_spec)
-	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_centres[par->index_temp_d_p+par->n_param_max*ii]=map_dum[ii];
+    if(par -> flag_include_polarization && par -> flag_independent_polarization)
+    {
+      map_dum = he_read_healpix_map(par -> input_temp_d_p_prior, &nside_dum, 0);
+      if (nside_dum != par -> nside_spec)
+      {
+	       report_error(1, "Read wrong nside\n");
+      }
+      he_ring2nest_inplace(map_dum, nside_dum);
+      for (ii = 0; ii < par -> n_pix_spec; ii++)
+      {
+        par -> map_prior_centres[par -> index_temp_d_p + par -> n_param_max * ii] = map_dum[ii];
+      }
       free(map_dum);
-      map_dum=he_read_healpix_map(par->input_temp_d_p_prior,&nside_dum,1);
-      if(nside_dum!=par->nside_spec)
-	report_error(1,"Read wrong nside\n");
-      he_ring2nest_inplace(map_dum,nside_dum);
-      for(ii=0;ii<par->n_pix_spec;ii++)
-	par->map_prior_widths[par->index_temp_d_p+par->n_param_max*ii]=map_dum[ii];
+      map_dum = he_read_healpix_map(par -> input_temp_d_p_prior, &nside_dum, 1);
+      if (nside_dum != par -> nside_spec)
+      {
+	       report_error(1, "Read wrong nside\n");
+      }
+      he_ring2nest_inplace(map_dum, nside_dum);
+      for (ii = 0; ii < par -> n_pix_spec; ii++)
+      {
+	       par -> map_prior_widths[par -> index_temp_d_p + par -> n_param_max * ii] = map_dum[ii];
+      }
       free(map_dum);
     }
   }
 
-  int npix_leftover,npix_pernode;
+  int npix_leftover, npix_pernode;
 
-  npix_leftover=par->n_pix_spec%NNodes;
-  npix_pernode=(par->n_pix_spec-npix_leftover)/NNodes;
-  if(NodeThis<npix_leftover) {
-    par->ipix_0=NodeThis*npix_pernode+NodeThis;
-    par->ipix_f=par->ipix_0+npix_pernode+1;
+  // Calculate the remainder of pixels after distributing over the nodes as
+  // evenly as possible.
+  npix_leftover = par -> n_pix_spec % NNodes;
+  // Remove the remainder, so we get perfect division, this is then the base
+  // number of pixels per node. We will then distribute the remainder.
+  npix_pernode = (par -> n_pix_spec - npix_leftover) / NNodes;
+  // Since the number of nodes must be less than the remainder (since we have
+  // a remainder) we add an extra pixel for each of NodeThis < npix_leftover,
+  // then for the rest of the nodes we give them npix_pernode.
+  if (NodeThis < npix_leftover)
+  {
+    par -> ipix_0 = NodeThis * npix_pernode + NodeThis;
+    // This is the +1 that redistributes the remainder.
+    par -> ipix_f = par -> ipix_0 + npix_pernode + 1;
   }
-  else {
-    par->ipix_0=NodeThis*npix_pernode+npix_leftover;
-    par->ipix_f=par->ipix_0+npix_pernode;
+  else
+  {
+    par -> ipix_0 = NodeThis * npix_pernode + npix_leftover;
+    par -> ipix_f = par -> ipix_0 + npix_pernode;
   }
 #ifdef _DEBUG
   printf("Node %d will compute pixels %d to %d\n",NodeThis,par->ipix_0,par->ipix_f-1);
 #endif //_DEBUG
 
   //Print parameters
-  if(NodeThis==0)
+  if (NodeThis == 0)
+  {
     param_bfore_print(par);
-
+  }
   return par;
 }
 
@@ -650,11 +843,11 @@ static void write_debug_info(ParamBFoRe *par)
   my_fwrite(&(par->n_spec_vary),sizeof(par->n_spec_vary),1,fo);
   my_fwrite(&(par->n_samples),sizeof(par->n_samples),1,fo);
   my_fwrite(&(par->n_samples_burn),sizeof(par->n_samples_burn),1,fo);
-  
+
   //Write spectral chains
   my_fwrite(par->dbg_extra,sizeof(flouble),
 	    (par->n_samples+par->n_samples_burn)*par->n_spec_vary,fo);
-  
+
   //Write spectral mean
   my_fwrite(&(par->map_indices_mean[par->dbg_ipix*par->n_spec_vary]),sizeof(flouble),
 	    par->n_spec_vary,fo);
@@ -666,7 +859,7 @@ static void write_debug_info(ParamBFoRe *par)
   //Write amplitudes mean
   my_fwrite(&(par->map_components_mean[par->dbg_ipix*par->n_comp*par->n_pol*par->n_sub]),
 	    sizeof(flouble),par->n_comp*par->n_pol*par->n_sub,fo);
-  
+
   //Write amplitudes covar
   my_fwrite(&(par->map_components_covar[par->dbg_ipix*par->n_comp*par->n_comp*
 					par->n_pol*par->n_sub]),sizeof(flouble),
@@ -675,7 +868,7 @@ static void write_debug_info(ParamBFoRe *par)
   //Write input data
   my_fwrite(&(par->maps_data[par->dbg_ipix*par->n_nu*par->n_pol*par->n_sub]),sizeof(flouble),
 	    par->n_nu*par->n_pol*par->n_sub,fo);
-  
+
   //Write input noise weights
   my_fwrite(&(par->maps_noise_weight[par->dbg_ipix*par->n_nu*par->n_pol*par->n_sub]),
 	    sizeof(flouble),par->n_nu*par->n_pol*par->n_sub,fo);
@@ -778,7 +971,7 @@ static void write_moments(ParamBFoRe *par)
       for(is1=0;is1<par->n_spec_vary;is1++)
 	free(map_out[is1]);
       free(map_out);
-      
+
       //Write output spectral covariances
       sprintf(fname,"!%s_spec_covar.fits",par->output_prefix);
       ncorr=par->n_spec_vary*(par->n_spec_vary+1)/2;

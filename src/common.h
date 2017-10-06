@@ -61,17 +61,28 @@
   extern int IThread0;
 
   typedef struct {
+    // nside on which amplitudes vary
     int nside;
+    // nside on which spectral parameter vary
     int nside_spec;
+    //
     int n_side_sub;
+    //  square of the ratio between nsides
     int n_sub;
+    // number of pixels at base resolution
     int n_pix;
+    // number of pixels at spectral parameter resolution
     int n_pix_spec;
 
+    // prefix for the input data. This should be a path to a file
+    // with the ending %03d.fits, but not including that ending.
     char input_data_prefix[256];
+    // data vector containing the input maps.
     flouble *maps_data;
 
+    // prefix for the input noise maps.
     char input_noise_prefix[256];
+    // data vector containing the noise level maps.
     flouble *maps_noise_weight;
 
     char input_beta_s_t_prior[256];
@@ -113,6 +124,7 @@
     int flag_beta_d_free;
     int flag_temp_d_free;
     int n_param_max;
+    // number of spectral parameters to be fitted.
     int n_spec_vary;
     int n_dof_pix;
     int index_beta_s_t;
@@ -135,6 +147,8 @@
     int n_samples_burn;
     int n_spec_resample;
 
+    // first and last large pixel that an individual process is responsible
+    // for cleaning.
     int ipix_0;
     int ipix_f;
 
@@ -237,9 +251,36 @@
     gsl_vector *vaux;
     double chi2;
   } PixelState;
+
+  /** @brief function to allocate memory for a PixelState struct.
+   *  @param par an instance of the ParamBFoRe struct with all the information
+   *         for the run
+   *  @return PixelState
+   */
   PixelState *pixel_state_new(ParamBFoRe *par);
+
+  /** @brief function to free memory allocated to a PixelState struct.
+   *  @param pst instance of PixelState to be freed.
+   *  @param par instance of ParamBFoRe that was used to initialize pst.
+   *  @return void
+   */
   void pixel_state_free(PixelState *pst,ParamBFoRe *par);
+
+  /** @brief clean pixel using old method.
+   *  @param par
+   *  @param rng
+   *  @param pst
+   *  @ipix_big
+   *  @param par instance of ParamBFoRe that was used to initialize pst.
+   *  @return void
+   */
   void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big);
+
+  /** @brief clean a large pixel (ipix_big) having marginalized over amplitudes.
+   *  @param rng seeded random number generator.
+   *  @param pst initial instance of PixelState which contains the priors.
+   *  @return void
+   */
   void clean_pixel_from_marginal(ParamBFoRe *par,Rng *rng,PixelState *pst_old,
   			       PixelState *pst_new,int ipix_big);
 

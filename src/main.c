@@ -161,12 +161,16 @@ int main(int argc, char **argv)
   #ifdef _WITH_OMP
     #pragma omp for
   #endif //_WITH_OMP
+    //  Loop over the large pixels this process is respsonsible for cleaning.
+    // i_pix_0 and i_pix_f are the beginning and end indices of these pixels,
+    // defined in read_params.
     for(ipix_big = par -> ipix_0; ipix_big < par -> ipix_f; ipix_big++)
 #endif //_DEBUG_SINGLEPIX
     {
 	     printf("Node %d, thread %d, pixel %d\n", NodeThis, ithr, ipix_big);
        if (par -> flag_use_marginal)
        {
+         // clean the ipix_big^th pixel using the marginal method.
          clean_pixel_from_marginal(par, rng, pst_old[ithr], pst_new[ithr], ipix_big);
        }
        else

@@ -751,7 +751,12 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
   int i_sample, ic1, ic2, ipix, n_updated, err, accepted;
   flouble ratio_accepted;
   flouble stepping_factor = 1.;
+  // n_spec_vary is the number of free parameters to be fitted, and ipix_big is
+  // the index of the pixel we are cleaning. ip_spc is therefore the beginning
+  // index of the output spectral parameter pixels we will need to write.
+  // ip_spc + 0 for sync, ip_spc + 1 for dust index etc...
   int ip_spc = par -> n_spec_vary * ipix_big;
+  // n_sub is 
   int id_cell = ipix_big * par -> n_sub * par -> n_pol;
   flouble *data = &(par -> maps_data[id_cell * par -> n_nu]);
   flouble *noise_w = &(par -> maps_noise_weight[id_cell * par -> n_nu]);
@@ -767,8 +772,8 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
   flouble factor_rescale = 2.4 / sqrt((double)(par -> n_spec_vary));
   int do_print = (ipix_big == par -> dbg_ipix);
 
-  init_priors(par,pst_old,ipix_big);
-  init_priors(par,pst_new,ipix_big);
+  init_priors(par, pst_old, ipix_big);
+  init_priors(par, pst_new, ipix_big);
   memset(amps_mean,0,par->n_sub*par->n_pol*par->n_comp*sizeof(flouble));
   memset(amps_covar,0,par->n_sub*par->n_pol*par->n_comp*par->n_comp*sizeof(flouble));
   restart_mcmc(par,pst_old,x_spec_old,mat_step,stepping_factor);
