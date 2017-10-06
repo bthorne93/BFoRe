@@ -92,7 +92,7 @@ void pixel_state_free(PixelState *pst, ParamBFoRe *par)
   * @param par ParamBFoRe struct used to initiate pixel.
   * @return scaled emission
   **/
-static flouble freq_evolve(int spec_type, double nu_0, double beta, double temp, double nu)
+static flouble freq_evolve(int spec_type, double nu_0, double beta, double temp, double curv, double nu)
 {
   flouble x_to, x_from, ex;
   switch(spec_type)
@@ -110,6 +110,9 @@ static flouble freq_evolve(int spec_type, double nu_0, double beta, double temp,
       x_to = 0.0479924466 * nu / temp; //DAM: possible optimization, use 1/T instead of T
       x_from = 0.0479924466 * nu_0 / temp;
       return pow(nu / nu_0, beta + 1.) * (exp(x_from) - 1) / (exp(x_to) - 1);
+      break;
+      case 1 :
+        return pow(nu / nu_0, beta - 2. + curv * log(nu / nu_0));
   }
   return -1;
 }
@@ -130,23 +133,23 @@ static void compute_f_matrix(ParamBFoRe *par, flouble *x_spec, flouble *f_matrix
     {
       for (ipol = 0; ipol < par -> n_pol; ipol++)
       {
-        f_matrix[par -> index_cmb + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(0, -1, -1, -1, nu);
+        f_matrix[par -> index_cmb + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(0, -1, -1, -1, -1, nu);
       }
     }
     if (par -> flag_include_synchrotron)
     {
-      f_matrix[par -> index_synchrotron + par -> n_comp * (inu + 0 * par -> n_nu)] = freq_evolve(1, par -> nu0_s, x_spec[par -> index_beta_s_t], -1, nu);
+      f_matrix[par -> index_synchrotron + par -> n_comp * (inu + 0 * par -> n_nu)] = freq_evolve(1, par -> nu0_s, x_spec[par -> index_beta_s_t], -1, -1, nu);
       for (ipol = 1; ipol < par -> n_pol; ipol++)
       {
-        f_matrix[par -> index_synchrotron + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(1, par -> nu0_s, x_spec[par -> index_beta_s_p], -1, nu);
+        f_matrix[par -> index_synchrotron + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(1, par -> nu0_s, x_spec[par -> index_beta_s_p], -1, -1, nu);
       }
     }
     if (par -> flag_include_dust)
     {
-      f_matrix[par -> index_dust + par -> n_comp * (inu + 0 * par -> n_nu)] =	freq_evolve(2, par -> nu0_d, x_spec[par -> index_beta_d_t], x_spec[par -> index_temp_d_t], nu);
+      f_matrix[par -> index_dust + par -> n_comp * (inu + 0 * par -> n_nu)] =	freq_evolve(2, par -> nu0_d, x_spec[par -> index_beta_d_t], x_spec[par -> index_temp_d_t], -1, nu);
       for (ipol = 1; ipol < par -> n_pol; ipol++)
       {
-        f_matrix[par -> index_dust + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(2, par -> nu0_d, x_spec[par -> index_beta_d_p], x_spec[par -> index_temp_d_p], nu);
+        f_matrix[par -> index_dust + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(2, par -> nu0_d, x_spec[par -> index_beta_d_p], x_spec[par -> index_temp_d_p], -1, nu);
       }
     }
   }
