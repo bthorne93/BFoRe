@@ -284,14 +284,19 @@ static void compute_marginalized_chi2(ParamBFoRe *par, flouble *data, flouble *n
         }
       }
       gsl_linalg_cholesky_decomp(mat_here);
-      if(par->flag_include_volume_prior==0) {
-	for(ic1=0;ic1<par->n_comp;ic1++)
-	  pst->chi2+=2*log(gsl_matrix_get(mat_here,ic1,ic1)); //0.5*log(det((F^T N^-1 F)^-1))
+      if (par -> flag_include_volume_prior == 0)
+      {
+        for (ic1 = 0; ic1 < par -> n_comp; ic1++)
+        {
+          pst -> chi2 += 2 * log(gsl_matrix_get(mat_here, ic1, ic1)); //0.5*log(det((F^T N^-1 F)^-1))
+        }
       }
       gsl_linalg_cholesky_invert(mat_here);
-      gsl_blas_dgemv(CblasNoTrans,1.,mat_here,pst->vaux,0,vec_here); //v_mean = (F^T N^-1 F)^-1 F^T N^-1 d
-      for(ic1=0;ic1<par->n_comp;ic1++)
-	pst->chi2-=gsl_vector_get(pst->vaux,ic1)*gsl_vector_get(vec_here,ic1); //chi2= (F^T N^-1 d)^T (F^T N^-1 F)^-1 (F^T N^-1 d)
+      gsl_blas_dgemv(CblasNoTrans, 1., mat_here, pst -> vaux, 0, vec_here); //v_mean = (F^T N^-1 F)^-1 F^T N^-1 d
+      for (ic1 = 0; ic1 < par -> n_comp; ic1++)
+      {
+        pst -> chi2 -= gsl_vector_get(pst -> vaux, ic1) * gsl_vector_get(vec_here, ic1); //chi2= (F^T N^-1 d)^T (F^T N^-1 F)^-1 (F^T N^-1 d)
+      }
     }
   }
 }
@@ -337,107 +342,115 @@ static void analyze_linear_chi2(ParamBFoRe *par, flouble *data, flouble *noise_w
   }
 }
 
-//static void solve_lower_triangular(int n,gsl_matrix *mat,flouble *v)
-//{
-//  int i;
-//  for(i=0;i<n;i++) {
-//    int j;
-//    flouble res=v[i];
-//    for(j=0;j<i;j++)
-//      res-=v[j]*gsl_matrix_get(mat,i,j);
-//    v[i]=res/gsl_matrix_get(mat,i,i);
-//  }
-//}
 
-static void solve_upper_triangular(int n,gsl_matrix *mat,flouble *v)
+static void solve_upper_triangular(int n, gsl_matrix *mat, flouble *v)
 {
   int i;
-  for(i=n-1;i>=0;i--) {
+  for (i = n - 1; i >= 0; i--)
+  {
     int j;
     flouble res=v[i];
-    for(j=n-1;j>i;j--)
-      res-=gsl_matrix_get(mat,i,j)*v[j];
-    v[i]=res/gsl_matrix_get(mat,i,i);
+    for (j = n - 1; j > i; j--)
+    {
+      res -= gsl_matrix_get(mat, i, j) * v[j];
+    }
+    v[i] = res / gsl_matrix_get(mat, i, i);
   }
 }
 
-static void draw_amplitudes(ParamBFoRe *par,Rng *rng,flouble *data,flouble *noise_w,
-			    flouble *x_spec,PixelState *pst,flouble *amps)
+static void draw_amplitudes(ParamBFoRe *par, Rng *rng, flouble *data, flouble *noise_w, flouble *x_spec, PixelState *pst, flouble *amps)
 {
   int ipix;
 
-  analyze_linear_chi2(par,data,noise_w,x_spec,pst);
+  analyze_linear_chi2(par, data, noise_w, x_spec, pst);
 
-  for(ipix=0;ipix<par->n_sub;ipix++) {
+  for (ipix = 0; ipix < par -> n_sub; ipix++)
+  {
     int ipol;
-    for(ipol=0;ipol<par->n_pol;ipol++) {
+    for (ipol = 0; ipol < par -> n_pol; ipol++)
+    {
       int icomp;
-      int index_pix=ipol+par->n_pol*ipix;
-      flouble *amp_here=&(amps[par->n_comp*index_pix]);
-      for(icomp=0;icomp<par->n_comp;icomp++)
-	amp_here[icomp]=rand_gauss(rng);
-      solve_upper_triangular(par->n_comp,pst->cov_inv[index_pix],amp_here); //t_rand = L^T^-1 u
-      for(icomp=0;icomp<par->n_comp;icomp++)
-	amp_here[icomp]+=gsl_vector_get(pst->vec_mean[index_pix],icomp); //t = t_mean + t_rand
+      int index_pix = ipol + par -> n_pol * ipix;
+      flouble *amp_here = &(amps[par -> n_comp * index_pix]);
+      for (icomp = 0; icomp < par -> n_comp; icomp++)
+	    {
+        amp_here[icomp]=rand_gauss(rng);
+      }
+      solve_upper_triangular(par -> n_comp, pst -> cov_inv[index_pix], amp_here); //t_rand = L^T^-1 u
+      for (icomp = 0; icomp < par -> n_comp; icomp++)
+      {
+        amp_here[icomp] += gsl_vector_get(pst -> vec_mean[index_pix], icomp); //t = t_mean + t_rand
+      }
     }
   }
 }
 
-static int draw_spectral_indices(ParamBFoRe *par,Rng *rng,flouble *data,flouble *noise_w,
-				 flouble *amps,flouble *x_spec_old,PixelState *pst,
-				 gsl_matrix *mat_step,flouble *x_spec_new)
+static int draw_spectral_indices(ParamBFoRe *par, Rng *rng, flouble *data, flouble *noise_w, flouble *amps, flouble *x_spec_old, PixelState *pst, gsl_matrix *mat_step, flouble *x_spec_new)
 { //DAM: possible optimization: demote mat_step to flouble *
   int ipar;
-  double chi2_old,chi2_new,ratio;
-  memcpy(x_spec_new,x_spec_old,par->n_param_max*sizeof(flouble));
-  for(ipar=0;ipar<par->n_spec_vary;ipar++)
-    pst->rand_spec[ipar]=rand_gauss(rng);
-  for(ipar=0;ipar<par->n_spec_vary;ipar++) {
+  double chi2_old, chi2_new, ratio;
+  memcpy(x_spec_new, x_spec_old, par -> n_param_max * sizeof(flouble));
+  for (ipar = 0; ipar < par -> n_spec_vary; ipar++)
+  {
+    pst -> rand_spec[ipar] = rand_gauss(rng);
+  }
+  for (ipar = 0; ipar < par -> n_spec_vary; ipar++)
+  {
     int ipar2;
-    for(ipar2=0;ipar2<=ipar;ipar2++)
-      x_spec_new[ipar]+=gsl_matrix_get(mat_step,ipar,ipar2)*pst->rand_spec[ipar2];
+    for (ipar2 = 0; ipar2 <= ipar; ipar2++)
+    {
+      x_spec_new[ipar] += gsl_matrix_get(mat_step, ipar, ipar2) * pst -> rand_spec[ipar2];
+    }
   }
 
-  chi2_new=compute_chi2(par,data,noise_w,amps,x_spec_new,pst)+chi2_prior(par,pst,x_spec_new);
-  chi2_old=compute_chi2(par,data,noise_w,amps,x_spec_old,pst)+chi2_prior(par,pst,x_spec_old);
-  if(par->flag_include_volume_prior) {
-    chi2_new+=chi2_prior_correctvolume(par,pst,noise_w,x_spec_new);
-    chi2_old+=chi2_prior_correctvolume(par,pst,noise_w,x_spec_old);
+  chi2_new = compute_chi2(par, data, noise_w, amps, x_spec_new, pst) + chi2_prior(par, pst, x_spec_new);
+  chi2_old = compute_chi2(par, data, noise_w, amps, x_spec_old, pst) + chi2_prior(par, pst, x_spec_old);
+  if (par -> flag_include_volume_prior)
+  {
+    chi2_new += chi2_prior_correctvolume(par, pst, noise_w, x_spec_new);
+    chi2_old += chi2_prior_correctvolume(par, pst, noise_w, x_spec_old);
   }
 
-  ratio=exp(-0.5*(chi2_new-chi2_old));
+  ratio = exp(-0.5 * (chi2_new - chi2_old));
 
-  if(ratio<1) {
-    if(rand_real01(rng)>ratio)
-      return 0;
+  if (ratio < 1)
+  {
+    if(rand_real01(rng) > ratio)
+    return 0;
   }
-
   return 1;
 }
 
-static int draw_spectral_indices_marginal(ParamBFoRe *par,Rng *rng,flouble *data,flouble *noise_w,
-					  flouble *x_spec_old,PixelState *pst_old,gsl_matrix *mat_step,
-					  flouble *x_spec_new,PixelState *pst_new)
+static int draw_spectral_indices_marginal(ParamBFoRe *par, Rng *rng, flouble *data, flouble *noise_w,
+  flouble *x_spec_old,PixelState *pst_old,gsl_matrix *mat_step,
+  flouble *x_spec_new,PixelState *pst_new)
 { //DAM: possible optimization: demote mat_step to flouble *
   int ipar;
   double ratio;
-  memcpy(x_spec_new,x_spec_old,par->n_param_max*sizeof(flouble));
-  for(ipar=0;ipar<par->n_spec_vary;ipar++)
+  memcpy(x_spec_new, x_spec_old, par -> n_param_max * sizeof(flouble));
+  for (ipar = 0; ipar < par -> n_spec_vary; ipar++)
+  {
     pst_new->rand_spec[ipar]=rand_gauss(rng);
-  for(ipar=0;ipar<par->n_spec_vary;ipar++) {
+  }
+  for (ipar = 0; ipar < par -> n_spec_vary; ipar++)
+  {
     int ipar2;
-    for(ipar2=0;ipar2<=ipar;ipar2++)
-      x_spec_new[ipar]+=gsl_matrix_get(mat_step,ipar,ipar2)*pst_new->rand_spec[ipar2];
+    for (ipar2 = 0; ipar2 <= ipar; ipar2++)
+    {
+      x_spec_new[ipar] += gsl_matrix_get(mat_step, ipar, ipar2) * pst_new -> rand_spec[ipar2];
+    }
   }
-  compute_marginalized_chi2(par,data,noise_w,x_spec_new,pst_new);
+  compute_marginalized_chi2(par, data, noise_w, x_spec_new, pst_new);
 
-  ratio=exp(-0.5*(pst_new->chi2-pst_old->chi2));
+  ratio = exp(-0.5 * (pst_new -> chi2 - pst_old -> chi2));
 
-  if(ratio<1) {
-    if(rand_real01(rng)>ratio)
+  if (ratio < 1)
+  {
+    if (rand_real01(rng) > ratio)
+    {
       return 0;
+    }
   }
-
   return 1;
 }
 
@@ -449,7 +462,6 @@ static int draw_spectral_indices_marginal(ParamBFoRe *par,Rng *rng,flouble *data
   * @param factor
   * @return
   */
-
 static void restart_mcmc(ParamBFoRe *par, PixelState *pst, flouble *x_spec, gsl_matrix *mat_step, flouble factor)
 {
   // Reset to prior values.
@@ -579,6 +591,302 @@ static void get_ml_marginal(ParamBFoRe *par, flouble *data, flouble *noise_w, fl
   free_powell_params(par_pow);
 
   compute_marginalized_chi2(par, data, noise_w, x_spec, pst);
+}
+
+void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
+  PixelState *pst_new, int ipix_big)
+{
+  int i_sample, ic1, ic2, ipix, n_updated, err, accepted;
+  flouble ratio_accepted;
+  flouble stepping_factor = 1.;
+  // n_spec_vary is the number of free parameters to be fitted, and ipix_big is
+  // the index of the pixel we are cleaning. ip_spc is therefore the beginning
+  // index of the output spectral parameter pixels we will need to write.
+  // ip_spc + 0 for sync, ip_spc + 1 for dust index etc...
+  int ip_spc = par -> n_spec_vary * ipix_big;
+  // n_sub is the ratio of pixels between base and spec resolution. Therefore
+  // id_cell is the number of pixels, at base resolution, in all the cells
+  // below it in T, Q, U.
+  int id_cell = ipix_big * par -> n_sub * par -> n_pol;
+  // Get the the addresses of all the input data (data, noise_w), and the
+  // output produces (amps_mean, amps_covar, ...) in the parameter struct.
+  flouble *data = &(par -> maps_data[id_cell * par -> n_nu]);
+  flouble *noise_w = &(par -> maps_noise_weight[id_cell * par -> n_nu]);
+  flouble *amps_mean = &(par -> map_components_mean[id_cell * par -> n_comp]);
+  flouble *amps_covar = &(par -> map_components_covar[id_cell * par -> n_comp * par -> n_comp]);
+  // Declare some working quantities.
+  flouble *x_spec_old = my_malloc(par -> n_param_max * sizeof(flouble));
+  flouble *x_spec_ml = my_malloc(par -> n_param_max * sizeof(flouble));
+  flouble *x_spec_new = my_malloc(par -> n_param_max * sizeof(flouble));
+  gsl_matrix *mat_step = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
+  gsl_matrix *cov_save = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
+  gsl_matrix *cov_spec = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
+  flouble *mean_spec = my_calloc(par -> n_spec_vary, sizeof(flouble));
+  flouble factor_rescale = 2.4 / sqrt((double)(par -> n_spec_vary));
+  int do_print = (ipix_big == par -> dbg_ipix);
+
+  // initialize the priors - reads the priors in par for the pixel we are
+  // considering into the prior_mean, prior_isigma, attributes of pst.
+  init_priors(par, pst_old, ipix_big);
+  init_priors(par, pst_new, ipix_big);
+
+  // set the amplitude mean and covariance arrays to zero for the indices we
+  // are considering.
+  memset(amps_mean, 0, par -> n_sub * par -> n_pol * par -> n_comp * sizeof(flouble));
+  memset(amps_covar, 0, par -> n_sub * par -> n_pol * par -> n_comp * par -> n_comp * sizeof(flouble));
+
+  // reset the parameters used for mcmc sampling.
+  restart_mcmc(par, pst_old, x_spec_old, mat_step, stepping_factor);
+  get_ml_marginal(par, data, noise_w, x_spec_old, pst_old);
+  memcpy(x_spec_ml, x_spec_old, par -> n_param_max * sizeof(flouble));
+
+  if (par -> n_spec_vary > 0)
+  {
+    dbg_printf(do_print, "Burning\n");
+    n_updated = 0;
+    ratio_accepted = 0;
+    gsl_matrix_set_zero(cov_spec);
+    gsl_matrix_set_zero(cov_save);
+    for (i_sample = 0; i_sample < par -> n_samples_burn; i_sample++)
+    {
+      accepted = draw_spectral_indices_marginal(par, rng, data, noise_w, x_spec_old, pst_old, mat_step, x_spec_new, pst_new); //b_{n+1}(A_{n+1})
+      if (accepted)
+      {
+        PixelState *tmp = pst_old;
+        memcpy(x_spec_old, x_spec_new, par -> n_param_max * sizeof(flouble));
+        pst_old = pst_new;
+        pst_new = tmp;
+      }
+#ifdef _DEBUG
+      if (ipix_big == par -> dbg_ipix)
+      {
+        memcpy(&(par -> dbg_extra[i_sample * par -> n_spec_vary]), x_spec_old, par -> n_spec_vary * sizeof(flouble));
+      }
+#endif //_DEBUG
+      for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+      {
+        mean_spec[ic1] += x_spec_old[ic1];
+        for (ic2 = 0; ic2 < par -> n_spec_vary; ic2++)
+        {
+          gsl_matrix_set(cov_spec, ic1, ic2, gsl_matrix_get(cov_spec, ic1, ic2) + x_spec_old[ic1] * x_spec_old[ic2]);
+        }
+      }
+      ratio_accepted += accepted;
+      if (i_sample % par -> n_update_covar == par -> n_update_covar - 1)
+      { //Update covariance
+	       if (ratio_accepted <= 5)
+         { //Check if too few samples were accepted
+           dbg_printf(do_print, "No samples were accepted! Restarting with smaller step size\n");
+           stepping_factor *= 0.5;
+           restart_mcmc(par, pst_old, x_spec_old, mat_step, stepping_factor);
+           memcpy(x_spec_old, x_spec_ml, par -> n_param_max * sizeof(flouble));
+           compute_marginalized_chi2(par, data, noise_w, x_spec_old, pst_old);
+           gsl_matrix_set_zero(cov_save);
+           n_updated = 0;
+           i_sample = -1;
+         }
+         else
+         {
+           //Compute mean in this batch
+           ratio_accepted /= par -> n_update_covar;
+           dbg_printf(do_print, "%d Acceptance ratio %.2lf\n", i_sample, ratio_accepted);
+           dbg_printf(do_print, "Current mean :");
+           for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+           {
+             mean_spec[ic1] /= par -> n_update_covar;
+             dbg_printf(do_print, " %lf", mean_spec[ic1]);
+           }
+           dbg_printf(do_print, "\n");
+           //Compute covariance in this batch
+           dbg_printf(do_print,"Current covariance :\n");
+           for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+           {
+             dbg_printf(do_print, "   |");
+             for (ic2 = 0; ic2 < par -> n_spec_vary; ic2++)
+             {
+               flouble cov = gsl_matrix_get(cov_spec, ic1, ic2) / par -> n_update_covar - mean_spec[ic1] * mean_spec[ic2];
+               gsl_matrix_set(cov_spec, ic1, ic2, cov);
+               dbg_printf(do_print, " %lE", gsl_matrix_get(cov_spec, ic1, ic2));
+             }
+             dbg_printf(do_print,"|\n");
+           }
+           //Add to mean covariance
+           if (i_sample > par -> n_samples_burn / 2)
+           {
+             n_updated++;
+             for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+             {
+               for (ic2 = 0; ic2 < par -> n_spec_vary; ic2++)
+               {
+                 gsl_matrix_set(cov_save, ic1, ic2, gsl_matrix_get(cov_save, ic1, ic2) + gsl_matrix_get(cov_spec, ic1, ic2));
+               }
+             }
+           }
+           //Save diagonal
+           for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+           {
+             mean_spec[ic1] = sqrt(gsl_matrix_get(cov_spec, ic1, ic1));
+           }
+           //Cholesky decomposition of covariance
+           err = gsl_linalg_cholesky_decomp(cov_spec);
+           gsl_matrix_set_zero(mat_step);
+           if (err == GSL_EDOM)
+           { //If covariance is not positive definite just save standard deviations
+             dbg_printf(do_print,"Covariance is not positive definite\n");
+             for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+             {
+               gsl_matrix_set(mat_step, ic1, ic1, factor_rescale * mean_spec[ic1]);
+             }
+           }
+           else
+           { //Store cholesky decomposition in stepping function
+             for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+             {
+               for(ic2 = 0; ic2 <= ic1; ic2++)
+               {
+                 gsl_matrix_set(mat_step,ic1,ic2,factor_rescale*gsl_matrix_get(cov_spec,ic1,ic2));
+               }
+             }
+           }
+         }
+         gsl_matrix_set_zero(cov_spec);
+         for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+         {
+           mean_spec[ic1] = 0;
+         }
+         ratio_accepted = 0;
+       }
+     }
+     dbg_printf(do_print, "Final covariance :\n");
+     for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+     { //Compute covariance
+       dbg_printf(do_print, "   |");
+       for (ic2 = 0; ic2 < par -> n_spec_vary; ic2++)
+       {
+         flouble cov = gsl_matrix_get(cov_save, ic1, ic2) / n_updated;
+         gsl_matrix_set(cov_save, ic1, ic2, cov);
+         dbg_printf(do_print, " %lE", cov);
+       }
+       dbg_printf(do_print, "|\n");
+       mean_spec[ic1] = sqrt(gsl_matrix_get(cov_save, ic1, ic1)); //Save diagonal
+     }
+     err = gsl_linalg_cholesky_decomp(cov_save); //Cholesky decomposition of covariance
+     gsl_matrix_set_zero(mat_step);
+     if (err == GSL_EDOM)
+     { //If covariance is not positive definite just save standard deviations
+       dbg_printf(do_print, "Final covariance is not positive definite!!!!\n");
+       for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+       {
+         gsl_matrix_set(mat_step, ic1, ic1, factor_rescale * mean_spec[ic1]);
+       }
+     }
+     else
+     { //Store cholesky decomposition in stepping function
+       for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+       {
+         for(ic2 = 0; ic2 <= ic1; ic2++)
+         {
+           gsl_matrix_set(mat_step, ic1, ic2, factor_rescale * gsl_matrix_get(cov_save, ic1, ic2));
+         }
+       }
+     }
+   }
+   dbg_printf(do_print, "Starting actual sampling\n");
+#ifdef _DEBUG
+   if (ipix_big == par -> dbg_ipix)
+  {
+    ratio_accepted = 0;
+  }
+#endif //_DEBUG
+  int n_samples_real = par -> n_samples;
+  if (par -> n_spec_vary == 0)
+  {
+    n_samples_real = 1;
+  }
+  for (i_sample = 0; i_sample < n_samples_real; i_sample++)
+  {
+    if(par -> n_spec_vary > 0)
+    {
+      accepted = draw_spectral_indices_marginal(par, rng, data, noise_w, x_spec_old, pst_old, mat_step, x_spec_new, pst_new); //b_{n+1}(A_{n+1})
+      if (accepted)
+      {
+        PixelState *tmp = pst_old;
+        memcpy(x_spec_old, x_spec_new, par -> n_param_max * sizeof(flouble));
+        pst_old = pst_new;
+        pst_new = tmp;
+      }
+    }
+#ifdef _DEBUG
+    if (par -> n_spec_vary > 0)
+    {
+      if (ipix_big == par -> dbg_ipix)
+      {
+        memcpy(&(par -> dbg_extra[(i_sample + par -> n_samples_burn) * par -> n_spec_vary]), x_spec_old, par -> n_spec_vary * sizeof(flouble));
+        ratio_accepted += accepted;
+        if (i_sample && (i_sample % par -> n_update_covar == par -> n_update_covar - 1))
+        {
+          ratio_accepted /= par -> n_update_covar;
+          dbg_printf(do_print, "%d Acceptance ratio %.2lf\n", i_sample, ratio_accepted);
+          ratio_accepted = 0;
+        }
+      }
+    }
+#endif //_DEBUG
+    //Add amplitudes
+    for (ipix = 0; ipix < par -> n_sub * par -> n_pol; ipix++)
+    {
+      int index_here = ipix * par -> n_comp;
+      for (ic1 = 0; ic1 < par -> n_comp; ic1++)
+      {
+        amps_mean[ic1 + index_here] += gsl_vector_get(pst_old -> vec_mean[ipix], ic1);
+        for (ic2 = 0; ic2 < par -> n_comp; ic2++)
+        {
+          amps_covar[ic2 + par -> n_comp * (ic1 + index_here)] += gsl_matrix_get(pst_old -> cov_inv[ipix], ic1, ic2);
+        }
+      }
+    }
+    //Add indices
+    for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+    {
+      par -> map_indices_mean[ic1 + ip_spc] += x_spec_old[ic1];
+      for (ic2 = 0; ic2 < par -> n_spec_vary; ic2++)
+      {
+        par -> map_indices_covar[ic1 + par -> n_spec_vary * (ic2 + ip_spc)] += x_spec_old[ic1] * x_spec_old[ic2];
+      }
+    }
+  }
+  //Compute averages
+  for (ipix = 0; ipix < par -> n_sub * par -> n_pol; ipix++)
+  {
+    int index_here = ipix * par -> n_comp;
+    for (ic1 = 0; ic1 < par -> n_comp; ic1++)
+    {
+      amps_mean[ic1 + index_here] /= n_samples_real;
+      for (ic2 = 0; ic2 < par -> n_comp; ic2++)
+      {
+        amps_covar[ic2 + par -> n_comp * (ic1 + index_here)] /= n_samples_real;
+      }
+    }
+  }
+  for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+  {
+    par -> map_indices_mean[ic1 + ip_spc] /= n_samples_real;
+  }
+  for (ic1 = 0; ic1 < par -> n_spec_vary; ic1++)
+  {
+    for (ic2 = 0; ic2 < par -> n_spec_vary; ic2++)
+    {
+      par -> map_indices_covar[ic1 + par -> n_spec_vary * (ic2 + ip_spc)] /= n_samples_real;
+      par -> map_indices_covar[ic1 + par -> n_spec_vary * (ic2 + ip_spc)] -= par -> map_indices_mean[ic1 + ip_spc] * par -> map_indices_mean[ic2 + ip_spc];
+    }
+  }
+  free(x_spec_old);
+  free(x_spec_new);
+  free(x_spec_ml);
+  free(mean_spec);
+  gsl_matrix_free(mat_step);
+  gsl_matrix_free(cov_save);
+  gsl_matrix_free(cov_spec);
 }
 
 void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big)
@@ -820,257 +1128,6 @@ void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big)
   free(amps_dum);
   free(x_spec_old);
   free(x_spec_new);
-  free(mean_spec);
-  gsl_matrix_free(mat_step);
-  gsl_matrix_free(cov_save);
-  gsl_matrix_free(cov_spec);
-}
-
-void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
-  PixelState *pst_new, int ipix_big)
-{
-  int i_sample, ic1, ic2, ipix, n_updated, err, accepted;
-  flouble ratio_accepted;
-  flouble stepping_factor = 1.;
-  // n_spec_vary is the number of free parameters to be fitted, and ipix_big is
-  // the index of the pixel we are cleaning. ip_spc is therefore the beginning
-  // index of the output spectral parameter pixels we will need to write.
-  // ip_spc + 0 for sync, ip_spc + 1 for dust index etc...
-  int ip_spc = par -> n_spec_vary * ipix_big;
-  // n_sub is the ratio of pixels between base and spec resolution. Therefore
-  // id_cell is the number of pixels, at base resolution, in all the cells
-  // below it in T, Q, U.
-  int id_cell = ipix_big * par -> n_sub * par -> n_pol;
-  // Get the the addresses of all the input data (data, noise_w), and the
-  // output produces (amps_mean, amps_covar, ...) in the parameter struct.
-  flouble *data = &(par -> maps_data[id_cell * par -> n_nu]);
-  flouble *noise_w = &(par -> maps_noise_weight[id_cell * par -> n_nu]);
-  flouble *amps_mean = &(par -> map_components_mean[id_cell * par -> n_comp]);
-  flouble *amps_covar = &(par -> map_components_covar[id_cell * par -> n_comp * par -> n_comp]);
-  // Declare some working quantities.
-  flouble *x_spec_old = my_malloc(par -> n_param_max * sizeof(flouble));
-  flouble *x_spec_ml = my_malloc(par -> n_param_max * sizeof(flouble));
-  flouble *x_spec_new = my_malloc(par -> n_param_max * sizeof(flouble));
-  gsl_matrix *mat_step = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
-  gsl_matrix *cov_save = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
-  gsl_matrix *cov_spec = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
-  flouble *mean_spec = my_calloc(par -> n_spec_vary, sizeof(flouble));
-  flouble factor_rescale = 2.4 / sqrt((double)(par -> n_spec_vary));
-  int do_print = (ipix_big == par -> dbg_ipix);
-
-  // initialize the priors - reads the priors in par for the pixel we are
-  // considering into the prior_mean, prior_isigma, attributes of pst.
-  init_priors(par, pst_old, ipix_big);
-  init_priors(par, pst_new, ipix_big);
-
-  // set the amplitude mean and covariance arrays to zero for the indices we
-  // are considering.
-  memset(amps_mean,0,par->n_sub*par->n_pol*par->n_comp*sizeof(flouble));
-  memset(amps_covar,0,par->n_sub*par->n_pol*par->n_comp*par->n_comp*sizeof(flouble));
-
-  // reset the parameters used for mcmc sampling.
-  restart_mcmc(par,pst_old,x_spec_old,mat_step,stepping_factor);
-  get_ml_marginal(par,data,noise_w,x_spec_old,pst_old);
-  memcpy(x_spec_ml,x_spec_old,par->n_param_max*sizeof(flouble));
-
-  if(par->n_spec_vary>0) {
-    dbg_printf(do_print,"Burning\n");
-    n_updated=0;
-    ratio_accepted=0;
-    gsl_matrix_set_zero(cov_spec);
-    gsl_matrix_set_zero(cov_save);
-    for(i_sample=0;i_sample<par->n_samples_burn;i_sample++) {
-      accepted=draw_spectral_indices_marginal(par,rng,data,noise_w,x_spec_old,pst_old,
-					      mat_step,x_spec_new,pst_new); //b_{n+1}(A_{n+1})
-      if(accepted) {
-	PixelState *tmp=pst_old;
-	memcpy(x_spec_old,x_spec_new,par->n_param_max*sizeof(flouble));
-	pst_old=pst_new;
-	pst_new=tmp;
-      }
-#ifdef _DEBUG
-      if(ipix_big==par->dbg_ipix)
-	memcpy(&(par->dbg_extra[i_sample*par->n_spec_vary]),x_spec_old,par->n_spec_vary*sizeof(flouble));
-#endif //_DEBUG
-      for(ic1=0;ic1<par->n_spec_vary;ic1++) {
-	mean_spec[ic1]+=x_spec_old[ic1];
-	for(ic2=0;ic2<par->n_spec_vary;ic2++) {
-	  gsl_matrix_set(cov_spec,ic1,ic2,gsl_matrix_get(cov_spec,ic1,ic2)+
-			 x_spec_old[ic1]*x_spec_old[ic2]);
-	}
-      }
-
-      ratio_accepted+=accepted;
-      if(i_sample%par->n_update_covar==par->n_update_covar-1) { //Update covariance
-	if(ratio_accepted<=5) { //Check if too few samples were accepted
-	  dbg_printf(do_print,"No samples were accepted! Restarting with smaller step size\n");
-	  stepping_factor*=0.5;
-	  restart_mcmc(par,pst_old,x_spec_old,mat_step,stepping_factor);
-	  memcpy(x_spec_old,x_spec_ml,par->n_param_max*sizeof(flouble));
-	  compute_marginalized_chi2(par,data,noise_w,x_spec_old,pst_old);
-	  gsl_matrix_set_zero(cov_save);
-	  n_updated=0;
-	  i_sample=-1;
-	}
-	else {
-	  //Compute mean in this batch
-	  ratio_accepted/=par->n_update_covar;
-	  dbg_printf(do_print,"%d Acceptance ratio %.2lf\n",i_sample,ratio_accepted);
-
-	  dbg_printf(do_print,"Current mean :");
-	  for(ic1=0;ic1<par->n_spec_vary;ic1++) {
-	    mean_spec[ic1]/=par->n_update_covar;
-	    dbg_printf(do_print," %lf",mean_spec[ic1]);
-	  }
-	  dbg_printf(do_print,"\n");
-	  //Compute covariance in this batch
-	  dbg_printf(do_print,"Current covariance :\n");
-	  for(ic1=0;ic1<par->n_spec_vary;ic1++) {
-	    dbg_printf(do_print,"   |");
-	    for(ic2=0;ic2<par->n_spec_vary;ic2++) {
-	      flouble cov=gsl_matrix_get(cov_spec,ic1,ic2)/par->n_update_covar-
-		mean_spec[ic1]*mean_spec[ic2];
-	      gsl_matrix_set(cov_spec,ic1,ic2,cov);
-	      dbg_printf(do_print," %lE",gsl_matrix_get(cov_spec,ic1,ic2));
-	    }
-	    dbg_printf(do_print,"|\n");
-	  }
-	  //Add to mean covariance
-	  if(i_sample>par->n_samples_burn/2) {
-	    n_updated++;
-	    for(ic1=0;ic1<par->n_spec_vary;ic1++) {
-	      for(ic2=0;ic2<par->n_spec_vary;ic2++)
-		gsl_matrix_set(cov_save,ic1,ic2,gsl_matrix_get(cov_save,ic1,ic2)+
-			       gsl_matrix_get(cov_spec,ic1,ic2));
-	    }
-	  }
-
-	  //Save diagonal
-	  for(ic1=0;ic1<par->n_spec_vary;ic1++)
-	    mean_spec[ic1]=sqrt(gsl_matrix_get(cov_spec,ic1,ic1));
-	  //Cholesky decomposition of covariance
-	  err=gsl_linalg_cholesky_decomp(cov_spec);
-	  gsl_matrix_set_zero(mat_step);
-	  if(err==GSL_EDOM) { //If covariance is not positive definite just save standard deviations
-	    dbg_printf(do_print,"Covariance is not positive definite\n");
-	    for(ic1=0;ic1<par->n_spec_vary;ic1++)
-	      gsl_matrix_set(mat_step,ic1,ic1,factor_rescale*mean_spec[ic1]);
-	  }
-	  else { //Store cholesky decomposition in stepping function
-	    for(ic1=0;ic1<par->n_spec_vary;ic1++) {
-	      for(ic2=0;ic2<=ic1;ic2++)
-		gsl_matrix_set(mat_step,ic1,ic2,factor_rescale*gsl_matrix_get(cov_spec,ic1,ic2));
-	    }
-	  }
-	}
-
-	gsl_matrix_set_zero(cov_spec);
-	for(ic1=0;ic1<par->n_spec_vary;ic1++)
-	  mean_spec[ic1]=0;
-	ratio_accepted=0;
-      }
-    }
-    dbg_printf(do_print,"Final covariance :\n");
-    for(ic1=0;ic1<par->n_spec_vary;ic1++) { //Compute covariance
-      dbg_printf(do_print,"   |");
-      for(ic2=0;ic2<par->n_spec_vary;ic2++) {
-	flouble cov=gsl_matrix_get(cov_save,ic1,ic2)/n_updated;
-	gsl_matrix_set(cov_save,ic1,ic2,cov);
-	dbg_printf(do_print," %lE",cov);
-      }
-      dbg_printf(do_print,"|\n");
-      mean_spec[ic1]=sqrt(gsl_matrix_get(cov_save,ic1,ic1)); //Save diagonal
-    }
-    err=gsl_linalg_cholesky_decomp(cov_save); //Cholesky decomposition of covariance
-    gsl_matrix_set_zero(mat_step);
-    if(err==GSL_EDOM) { //If covariance is not positive definite just save standard deviations
-      dbg_printf(do_print,"Final covariance is not positive definite!!!!\n");
-      for(ic1=0;ic1<par->n_spec_vary;ic1++)
-	gsl_matrix_set(mat_step,ic1,ic1,factor_rescale*mean_spec[ic1]);
-    }
-    else { //Store cholesky decomposition in stepping function
-      for(ic1=0;ic1<par->n_spec_vary;ic1++) {
-	for(ic2=0;ic2<=ic1;ic2++)
-	  gsl_matrix_set(mat_step,ic1,ic2,factor_rescale*gsl_matrix_get(cov_save,ic1,ic2));
-      }
-    }
-  }
-
-  dbg_printf(do_print,"Starting actual sampling\n");
-#ifdef _DEBUG
-  if(ipix_big==par->dbg_ipix)
-    ratio_accepted=0;
-#endif //_DEBUG
-  int n_samples_real=par->n_samples;
-  if(par->n_spec_vary==0)
-    n_samples_real=1;
-  for(i_sample=0;i_sample<n_samples_real;i_sample++) {
-    if(par->n_spec_vary>0) {
-      accepted=draw_spectral_indices_marginal(par,rng,data,noise_w,x_spec_old,pst_old,
-					      mat_step,x_spec_new,pst_new); //b_{n+1}(A_{n+1})
-      if(accepted) {
-	PixelState *tmp=pst_old;
-	memcpy(x_spec_old,x_spec_new,par->n_param_max*sizeof(flouble));
-	pst_old=pst_new;
-	pst_new=tmp;
-      }
-    }
-
-#ifdef _DEBUG
-    if(par->n_spec_vary>0) {
-      if(ipix_big==par->dbg_ipix) {
-	memcpy(&(par->dbg_extra[(i_sample+par->n_samples_burn)*par->n_spec_vary]),
-	       x_spec_old,par->n_spec_vary*sizeof(flouble));
-	ratio_accepted+=accepted;
-	if(i_sample && (i_sample%par->n_update_covar==par->n_update_covar-1)) {
-	  ratio_accepted/=par->n_update_covar;
-	  dbg_printf(do_print,"%d Acceptance ratio %.2lf\n",i_sample,ratio_accepted);
-	  ratio_accepted=0;
-	}
-      }
-    }
-#endif //_DEBUG
-
-    //Add amplitudes
-    for(ipix=0;ipix<par->n_sub*par->n_pol;ipix++) {
-      int index_here=ipix*par->n_comp;
-      for(ic1=0;ic1<par->n_comp;ic1++) {
-	amps_mean[ic1+index_here]+=gsl_vector_get(pst_old->vec_mean[ipix],ic1);
-	for(ic2=0;ic2<par->n_comp;ic2++)
-	  amps_covar[ic2+par->n_comp*(ic1+index_here)]+=gsl_matrix_get(pst_old->cov_inv[ipix],ic1,ic2);
-      }
-    }
-    //Add indices
-    for(ic1=0;ic1<par->n_spec_vary;ic1++) {
-      par->map_indices_mean[ic1+ip_spc]+=x_spec_old[ic1];
-      for(ic2=0;ic2<par->n_spec_vary;ic2++)
-	par->map_indices_covar[ic1+par->n_spec_vary*(ic2+ip_spc)]+=x_spec_old[ic1]*x_spec_old[ic2];
-    }
-  }
-
-  //Compute averages
-  for(ipix=0;ipix<par->n_sub*par->n_pol;ipix++) {
-    int index_here=ipix*par->n_comp;
-    for(ic1=0;ic1<par->n_comp;ic1++) {
-      amps_mean[ic1+index_here]/=n_samples_real;
-      for(ic2=0;ic2<par->n_comp;ic2++)
-	amps_covar[ic2+par->n_comp*(ic1+index_here)]/=n_samples_real;
-    }
-  }
-  for(ic1=0;ic1<par->n_spec_vary;ic1++)
-    par->map_indices_mean[ic1+ip_spc]/=n_samples_real;
-
-  for(ic1=0;ic1<par->n_spec_vary;ic1++) {
-    for(ic2=0;ic2<par->n_spec_vary;ic2++) {
-      par->map_indices_covar[ic1+par->n_spec_vary*(ic2+ip_spc)]/=n_samples_real;
-      par->map_indices_covar[ic1+par->n_spec_vary*(ic2+ip_spc)]-=
-	par->map_indices_mean[ic1+ip_spc]*par->map_indices_mean[ic2+ip_spc];
-    }
-  }
-
-  free(x_spec_old);
-  free(x_spec_new);
-  free(x_spec_ml);
   free(mean_spec);
   gsl_matrix_free(mat_step);
   gsl_matrix_free(cov_save);

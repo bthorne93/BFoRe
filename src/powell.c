@@ -203,55 +203,68 @@ static void linmin(PowellParams *par,flouble *xdir)
 
 void powell(PowellParams *par)
 {
-  int i,ibig,j;
-  flouble del,fp,fptt,t,*pt,*ptt,*xit;
+  int i, ibig, j;
+  flouble del, fp, fptt, t, *pt, *ptt, *xit;
 
-  pt=(flouble *)my_malloc(par->n*sizeof(flouble));
-  ptt=(flouble *)my_malloc(par->n*sizeof(flouble));
-  xit=(flouble *)my_malloc(par->n*sizeof(flouble));
+  pt = (flouble *)my_malloc(par->n*sizeof(flouble));
+  ptt = (flouble *)my_malloc(par->n*sizeof(flouble));
+  xit = (flouble *)my_malloc(par->n*sizeof(flouble));
 
-  for(j=0;j<par->n;j++) pt[j]=par->p[j]; //Save initial point;
+  for (j = 0; j < par -> n; j++)
+  {
+    pt[j] = par -> p[j]; //Save initial point;
+  }
 
-  for(par->iter=1;par->iter<par->max_iter;par->iter++) {
-    fp=par->fret;
-    ibig=0;
-    del=0; //Will become the biggest function decrease
-    for(i=0;i<par->n;i++) {
-      for(j=0;j<par->n;j++) xit[j]=par->xi[j][i];
-      fptt=par->fret;
-      linmin(par,xit);
-      if(fptt-par->fret > del) { //Record largest decrease
-	del=fptt-par->fret;
-	ibig=i;
+  for (par -> iter = 1; par -> iter < par -> max_iter; par -> iter++)
+  {
+    fp = par -> fret;
+    ibig = 0;
+    del = 0; //Will become the biggest function decrease
+    for (i = 0; i < par -> n; i++)
+    {
+      for (j = 0; j < par -> n; j++)
+      {
+        xit[j] = par -> xi[j][i];
+      }
+      fptt = par -> fret;
+      linmin(par, xit);
+      if (fptt - par -> fret > del)
+      { //Record largest decrease
+        del = fptt - par -> fret;
+        ibig = i;
       }
     }
-    if(2.*(fp-par->fret) < par->ftol*(fabs(fp)+fabs(par->fret))+TINY) {
+    if (2. * (fp - par -> fret) < par -> ftol * (fabs(fp) + fabs(par -> fret)) + TINY)
+    {
       free(pt);
       free(ptt);
       free(xit);
-
       return;
     }
-    if(par->iter==par->max_iter) {
-      report_error(0,"Powell didn't converge after %d iterations\n",
-		   par->max_iter);
+    if (par -> iter == par -> max_iter)
+    {
+      report_error(0,"Powell didn't converge after %d iterations\n", par -> max_iter);
       return;
     }
-    for(j=0;j<par->n;j++) {
-      ptt[j]=2.*par->p[j]-pt[j];
-      xit[j]=par->p[j]-pt[j];
-      pt[j]=par->p[j];
+    for (j = 0; j < par -> n; j++)
+    {
+      ptt[j] = 2. * par -> p[j] - pt[j];
+      xit[j] = par -> p[j] - pt[j];
+      pt[j] = par -> p[j];
     }
-    fptt=(*(par->fun))(ptt,par->params);
-    if(fptt<fp) {
-      flouble x=fp-par->fret-del;
-      t=2.*(fp-2*par->fret+fptt)*x*x-del*(fp-fptt)*(fp-fptt);
-      if(t<0.0) {
-	linmin(par,xit);
-	for(j=0;j<par->n;j++) {
-	  par->xi[j][ibig]=par->xi[j][par->n-1];
-	  par->xi[j][par->n-1]=xit[j];
-	}
+    fptt = (*(par -> fun))(ptt, par -> params);
+    if (fptt < fp)
+    {
+      flouble x = fp - par -> fret - del;
+      t = 2. * (fp - 2 * par -> fret + fptt) * x * x - del * (fp - fptt) * (fp - fptt);
+      if (t < 0.0)
+      {
+        linmin(par, xit);
+        for (j = 0; j < par -> n; j++)
+        {
+          par -> xi[j][ibig] = par -> xi[j][par -> n - 1];
+          par -> xi[j][par -> n - 1] = xit[j];
+        }
       }
     }
   }
