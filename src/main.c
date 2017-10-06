@@ -79,7 +79,7 @@ int main(int argc, char **argv)
   */
   char fname_init[256];
 
-  if(argc! = 2)
+  if(argc != 2)
   {
     // Check command line inputs.
     printf("Usage: bfore.x param_file\n");
