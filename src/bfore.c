@@ -130,7 +130,7 @@ static void compute_f_matrix(ParamBFoRe *par, flouble *x_spec, flouble *f_matrix
     {
       for (ipol = 0; ipol < par -> n_pol; ipol++)
       {
-	       f_matrix[par -> index_cmb + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(0, -1, -1, -1, nu);
+        f_matrix[par -> index_cmb + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(0, -1, -1, -1, nu);
       }
     }
     if (par -> flag_include_synchrotron)
@@ -175,62 +175,65 @@ static flouble chi2_prior_correctvolume(ParamBFoRe *par, PixelState *pst, floubl
         {
           int ic2;
           flouble fm1 = pst -> f_matrix[ic1 + par -> n_comp * (inu + par -> n_nu * ipol)];
-          for(ic2 = 0; ic2 <= ic1; ic2++) {
-            flouble fm2=pst->f_matrix[ic2+par->n_comp*(inu+par->n_nu*ipol)];
-            gsl_matrix_set(mat_here,ic1,ic2,gsl_matrix_get(mat_here,ic1,ic2)+fm1*fm2*invsigma2);
-	  }
-	}
+          for(ic2 = 0; ic2 <= ic1; ic2++)
+          {
+            flouble fm2 = pst -> f_matrix[ic2 + par -> n_comp * (inu + par -> n_nu * ipol)];
+            gsl_matrix_set(mat_here, ic1, ic2, gsl_matrix_get(mat_here, ic1, ic2) + fm1 * fm2 * invsigma2);
+          }
+        }
       }
-
       gsl_linalg_cholesky_decomp(mat_here);
-      for(ic1=0;ic1<par->n_comp;ic1++)
-	chi2+=log(gsl_matrix_get(mat_here,ic1,ic1));
+      for (ic1 = 0; ic1 < par -> n_comp; ic1++)
+	    {
+        chi2 += log(gsl_matrix_get(mat_here, ic1, ic1));
+      }
     }
   }
-
-  return -2*chi2;
+  return -2 * chi2;
 }
 
-static flouble chi2_prior(ParamBFoRe *par,PixelState *pst,flouble *x_spec)
+static flouble chi2_prior(ParamBFoRe *par, PixelState *pst, flouble *x_spec)
 {
   int ipar;
-  flouble x,chi2=0;
+  flouble x, chi2 = 0;
 
-  for(ipar=0;ipar<par->n_spec_vary;ipar++) {
-    if(pst->prior_isigma[ipar]>0) {
-      x=(x_spec[ipar]-pst->prior_mean[ipar])*pst->prior_isigma[ipar];
-      chi2+=x*x;
+  for (ipar = 0; ipar < par -> n_spec_vary; ipar++)
+  {
+    if(pst -> prior_isigma[ipar] > 0)
+    {
+      x = (x_spec[ipar] - pst -> prior_mean[ipar]) * pst -> prior_isigma[ipar];
+      chi2 += x * x;
     }
   }
-
   return chi2;
 }
 
-static double compute_chi2(ParamBFoRe *par,flouble *data,flouble *noise_w,
-			   flouble *amps,flouble *x_spec,PixelState *pst)
+static double compute_chi2(ParamBFoRe *par, flouble *data, flouble *noise_w, flouble *amps, flouble *x_spec, PixelState *pst)
 {
   int ipix;
-  double chi2=0;
+  double chi2 = 0;
 
-  compute_f_matrix(par,x_spec,pst->f_matrix);
+  compute_f_matrix(par, x_spec, pst -> f_matrix);
 
-  for(ipix=0;ipix<par->n_sub;ipix++) {
+  for (ipix = 0; ipix < par -> n_sub; ipix++)
+  {
     int ipol;
-    for(ipol=0;ipol<par->n_pol;ipol++) {
+    for (ipol = 0; ipol < par -> n_pol; ipol++)
+    {
       int inu;
-      int index_pix=ipol+par->n_pol*ipix;
-      for(inu=0;inu<par->n_nu;inu++) {
-	int icomp;
-	double res=(double)(data[inu+par->n_nu*index_pix]);
-	for(icomp=0;icomp<par->n_comp;icomp++) {
-	  res-=pst->f_matrix[icomp+par->n_comp*(inu+par->n_nu*ipol)]*
-	    amps[icomp+par->n_comp*index_pix];
-	}
-	chi2+=res*res*noise_w[inu+par->n_nu*index_pix];
+      int index_pix = ipol + par -> n_pol * ipix;
+      for (inu = 0; inu < par -> n_nu; inu++)
+      {
+        int icomp;
+        double res = (double)(data[inu + par -> n_nu * index_pix]);
+        for (icomp = 0; icomp < par -> n_comp; icomp++)
+        {
+          res -= pst -> f_matrix[icomp + par -> n_comp * (inu + par -> n_nu * ipol)] * amps[icomp + par -> n_comp * index_pix];
+        }
+        chi2 += res * res * noise_w[inu + par -> n_nu * index_pix];
       }
     }
   }
-
   return chi2;
 }
 
@@ -293,37 +296,40 @@ static void compute_marginalized_chi2(ParamBFoRe *par, flouble *data, flouble *n
   }
 }
 
-static void analyze_linear_chi2(ParamBFoRe *par,flouble *data,flouble *noise_w,
-				flouble *x_spec,PixelState *pst)
+static void analyze_linear_chi2(ParamBFoRe *par, flouble *data, flouble *noise_w, flouble *x_spec, PixelState *pst)
 {
   int ipix;
 
-  compute_f_matrix(par,x_spec,pst->f_matrix);
+  compute_f_matrix(par, x_spec, pst -> f_matrix);
 
-  for(ipix=0;ipix<par->n_sub;ipix++) {
+  for (ipix = 0; ipix < par -> n_sub; ipix++)
+  {
     int ipol;
-    for(ipol=0;ipol<par->n_pol;ipol++) {
+    for (ipol = 0; ipol < par -> n_pol; ipol++)
+    {
       int ic1;
-      int index_pix=ipol+par->n_pol*ipix;
-      for(ic1=0;ic1<par->n_comp;ic1++) {
-	int ic2,inu;
-	flouble vec=0;
-	for(inu=0;inu<par->n_nu;inu++) {
-	  vec+=
-	    pst->f_matrix[ic1+par->n_comp*(inu+par->n_nu*ipol)]*
-	    data[inu+par->n_nu*index_pix]*noise_w[inu+par->n_nu*index_pix]; //v = F^T N^-1 d
-	}
-	gsl_vector_set(pst->vec_mean[index_pix],ic1,vec);
-	for(ic2=0;ic2<par->n_comp;ic2++) {
-	  flouble icov=0;
-	  for(inu=0;inu<par->n_nu;inu++) {
-	    icov+=
-	      pst->f_matrix[ic1+par->n_comp*(inu+par->n_nu*ipol)]*
-	      pst->f_matrix[ic2+par->n_comp*(inu+par->n_nu*ipol)]*
-	      noise_w[inu+par->n_nu*index_pix]; //C^-1 = F^T N^-1 F
-	  }
-	  gsl_matrix_set(pst->cov_inv[index_pix],ic1,ic2,icov);
-	}
+      int index_pix = ipol + par -> n_pol * ipix;
+      for (ic1 = 0; ic1 < par -> n_comp; ic1++)
+      {
+        int ic2, inu;
+        flouble vec = 0;
+        for (inu = 0; inu < par -> n_nu; inu++)
+        {
+          vec += pst -> f_matrix[ic1 + par -> n_comp * (inu + par -> n_nu * ipol)] * data[inu + par -> n_nu * index_pix] * noise_w[inu + par -> n_nu * index_pix]; //v = F^T N^-1 d
+        }
+        gsl_vector_set(pst -> vec_mean[index_pix], ic1, vec);
+        for (ic2 = 0; ic2 < par -> n_comp; ic2++)
+        {
+          flouble icov = 0;
+          for (inu = 0; inu < par -> n_nu; inu++)
+          {
+            icov+=
+            pst -> f_matrix[ic1 + par -> n_comp * (inu + par -> n_nu * ipol)] *
+            pst -> f_matrix[ic2 + par -> n_comp * (inu + par -> n_nu * ipol)] *
+            noise_w[inu + par -> n_nu * index_pix]; //C^-1 = F^T N^-1 F
+          }
+          gsl_matrix_set(pst -> cov_inv[index_pix], ic1, ic2, icov);
+        }
       }
       gsl_linalg_cholesky_decomp(pst->cov_inv[index_pix]);
       gsl_linalg_cholesky_svx(pst->cov_inv[index_pix],pst->vec_mean[index_pix]); //v = (F^T N^-1 F)^-1 F^T N^-1 d
