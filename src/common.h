@@ -87,6 +87,8 @@
 
     char input_beta_s_t_prior[256];
     char input_beta_s_p_prior[256];
+    char input_curv_s_t_prior[256];
+    char input_curv_s_p_prior[256];
     char input_beta_d_t_prior[256];
     char input_beta_d_p_prior[256];
     char input_temp_d_t_prior[256];
@@ -111,6 +113,7 @@
 
     int flag_include_cmb;
     int flag_include_synchrotron;
+    int flag_include_curvature;
     int flag_include_dust;
     int flag_include_volume_prior;
     int flag_use_marginal;
@@ -121,6 +124,7 @@
 
     int flag_independent_polarization;
     int flag_beta_s_free;
+    int flag_curv_s_free;
     int flag_beta_d_free;
     int flag_temp_d_free;
     int n_param_max;
@@ -134,6 +138,7 @@
     int index_temp_d_t;
     int index_temp_d_p;
     flouble beta_s_step;
+    flouble curv_s_step;
     flouble beta_d_step;
     flouble temp_d_step;
     flouble nu0_s;
@@ -235,7 +240,7 @@
     double (*fun)(double *,void *);
     void *params;
   } PowellParams;
-  
+
   void free_powell_params(PowellParams *par);
   PowellParams *powell_params_new(int n,flouble *p,flouble (*fun)(flouble *,void *),
   				void *params,int max_iter,flouble ftol);
