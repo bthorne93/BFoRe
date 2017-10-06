@@ -63,6 +63,7 @@ PixelState *pixel_state_new(ParamBFoRe *par)
   return pst;
 }
 
+
 void pixel_state_free(PixelState *pst, ParamBFoRe *par)
 {
   int ip;
@@ -81,83 +82,102 @@ void pixel_state_free(PixelState *pst, ParamBFoRe *par)
   free(pst);
 }
 
-static flouble freq_evolve(int spec_type,double nu_0,double beta,double temp,double nu)
+/** @bief function to implement all the frequency scalings for BFoRe. This is
+  *       the code to edit in order to implement new models.
+  * @param spec_type
+  * @param nu_0 reference frequency to be scaled from
+  * @param beta spectral index
+  * @param temp temperature
+  * @param frequency to be scaled to
+  * @param par ParamBFoRe struct used to initiate pixel.
+  * @return scaled emission
+  **/
+static flouble freq_evolve(int spec_type, double nu_0, double beta, double temp, double nu)
 {
-  flouble x_to,x_from,ex;
-  switch(spec_type)  {
-  case 0 :
-    x_to=0.017611907*nu;
-    ex=exp(x_to);
-    x_to=x_to/(ex-1);
-    return ex*x_to*x_to;
+  flouble x_to, x_from, ex;
+  switch(spec_type)
+  {
+    case 0 :
+      x_to = 0.017611907 * nu;
+      ex = exp(x_to);
+      x_to = x_to / (ex - 1);
+      return ex * x_to * x_to;
     break;
-  case 1 :
-    return pow(nu/nu_0,beta-2.);
+    case 1 :
+      return pow(nu / nu_0, beta - 2.);
     break;
-  case 2 :
-    x_to=0.0479924466*nu/temp; //DAM: possible optimization, use 1/T instead of T
-    x_from=0.0479924466*nu_0/temp;
-    return pow(nu/nu_0,beta+1.)*(exp(x_from)-1)/(exp(x_to)-1);
+    case 2 :
+      x_to = 0.0479924466 * nu / temp; //DAM: possible optimization, use 1/T instead of T
+      x_from = 0.0479924466 * nu_0 / temp;
+      return pow(nu / nu_0, beta + 1.) * (exp(x_from) - 1) / (exp(x_to) - 1);
   }
   return -1;
 }
 
-static void compute_f_matrix(ParamBFoRe *par,flouble *x_spec,flouble *f_matrix)
+/** @brief function to compute the mixing matrix
+  * @param par instance of ParamBFoRe
+  * @param x_spex proposal model vector
+  * @param f_matrix matrix for the result to be stored.
+  */
+static void compute_f_matrix(ParamBFoRe *par, flouble *x_spec, flouble *f_matrix)
 {
   int inu;
-  for(inu=0;inu<par->n_nu;inu++) {
+  for (inu = 0; inu < par -> n_nu; inu++)
+  {
     int ipol;
     flouble nu=par->freqs[inu];
-    if(par->flag_include_cmb) {
-      for(ipol=0;ipol<par->n_pol;ipol++) {
-	f_matrix[par->index_cmb+par->n_comp*(inu+ipol*par->n_nu)]=
-	  freq_evolve(0,-1,-1,-1,nu);
+    if (par -> flag_include_cmb)
+    {
+      for (ipol = 0; ipol < par -> n_pol; ipol++)
+      {
+	       f_matrix[par -> index_cmb + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(0, -1, -1, -1, nu);
       }
     }
-    if(par->flag_include_synchrotron) {
-      f_matrix[par->index_synchrotron+par->n_comp*(inu+0*par->n_nu)]=
-	freq_evolve(1,par->nu0_s,x_spec[par->index_beta_s_t],-1,nu);
-      for(ipol=1;ipol<par->n_pol;ipol++) {
-	f_matrix[par->index_synchrotron+par->n_comp*(inu+ipol*par->n_nu)]=
-	  freq_evolve(1,par->nu0_s,x_spec[par->index_beta_s_p],-1,nu);
+    if (par -> flag_include_synchrotron)
+    {
+      f_matrix[par -> index_synchrotron + par -> n_comp * (inu + 0 * par -> n_nu)] = freq_evolve(1, par -> nu0_s, x_spec[par -> index_beta_s_t], -1, nu);
+      for (ipol = 1; ipol < par -> n_pol; ipol++)
+      {
+        f_matrix[par -> index_synchrotron + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(1, par -> nu0_s, x_spec[par -> index_beta_s_p], -1, nu);
       }
     }
-    if(par->flag_include_dust) {
-      f_matrix[par->index_dust+par->n_comp*(inu+0*par->n_nu)]=
-	freq_evolve(2,par->nu0_d,x_spec[par->index_beta_d_t],
-		    x_spec[par->index_temp_d_t],nu);
-      for(ipol=1;ipol<par->n_pol;ipol++) {
-	f_matrix[par->index_dust+par->n_comp*(inu+ipol*par->n_nu)]=
-	  freq_evolve(2,par->nu0_d,x_spec[par->index_beta_d_p],
-		      x_spec[par->index_temp_d_p],nu);
+    if (par -> flag_include_dust)
+    {
+      f_matrix[par -> index_dust + par -> n_comp * (inu + 0 * par -> n_nu)] =	freq_evolve(2, par -> nu0_d, x_spec[par -> index_beta_d_t], x_spec[par -> index_temp_d_t], nu);
+      for (ipol = 1; ipol < par -> n_pol; ipol++)
+      {
+        f_matrix[par -> index_dust + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(2, par -> nu0_d, x_spec[par -> index_beta_d_p], x_spec[par -> index_temp_d_p], nu);
       }
     }
   }
 }
 
-static flouble chi2_prior_correctvolume(ParamBFoRe *par,PixelState *pst,
-					flouble *noise_w,flouble *x_spec)
+static flouble chi2_prior_correctvolume(ParamBFoRe *par, PixelState *pst, flouble *noise_w, flouble *x_spec)
 {
   int ipix;
-  double chi2=0;
+  double chi2 = 0;
 
-  compute_f_matrix(par,x_spec,pst->f_matrix);
+  compute_f_matrix(par, x_spec, pst -> f_matrix);
 
-  for(ipix=0;ipix<par->n_sub;ipix++) {
+  for (ipix = 0; ipix < par -> n_sub; ipix++)
+  {
     int ipol;
-    for(ipol=0;ipol<par->n_pol;ipol++) {
-      int inu,ic1;
-      int index_pix=ipol+par->n_pol*ipix;
-      gsl_matrix *mat_here=pst->cov_inv[index_pix];
+    for (ipol = 0; ipol < par -> n_pol; ipol++)
+    {
+      int inu, ic1;
+      int index_pix = ipol + par -> n_pol * ipix;
+      gsl_matrix *mat_here = pst -> cov_inv[index_pix];
       gsl_matrix_set_zero(mat_here);
-      for(inu=0;inu<par->n_nu;inu++) {
-	flouble invsigma2=noise_w[inu+par->n_nu*index_pix];
-	for(ic1=0;ic1<par->n_comp;ic1++) {
-	  int ic2;
-	  flouble fm1=pst->f_matrix[ic1+par->n_comp*(inu+par->n_nu*ipol)];
-	  for(ic2=0;ic2<=ic1;ic2++) {
-	    flouble fm2=pst->f_matrix[ic2+par->n_comp*(inu+par->n_nu*ipol)];
-	    gsl_matrix_set(mat_here,ic1,ic2,gsl_matrix_get(mat_here,ic1,ic2)+fm1*fm2*invsigma2);
+      for (inu = 0; inu < par -> n_nu; inu++)
+      {
+        flouble invsigma2 = noise_w[inu + par -> n_nu * index_pix];
+        for (ic1 = 0; ic1 < par -> n_comp; ic1++)
+        {
+          int ic2;
+          flouble fm1 = pst -> f_matrix[ic1 + par -> n_comp * (inu + par -> n_nu * ipol)];
+          for(ic2 = 0; ic2 <= ic1; ic2++) {
+            flouble fm2=pst->f_matrix[ic2+par->n_comp*(inu+par->n_nu*ipol)];
+            gsl_matrix_set(mat_here,ic1,ic2,gsl_matrix_get(mat_here,ic1,ic2)+fm1*fm2*invsigma2);
 	  }
 	}
       }
@@ -214,36 +234,51 @@ static double compute_chi2(ParamBFoRe *par,flouble *data,flouble *noise_w,
   return chi2;
 }
 
-static void compute_marginalized_chi2(ParamBFoRe *par,flouble *data,flouble *noise_w,
-				      flouble *x_spec,PixelState *pst)
+
+/** @brief compute the marginalize chi squared for a given model and pixel
+  * state.
+  * @param par
+  * @param data
+  * @param noise_w
+  * @param x_spec
+  * @param pst
+  * @return
+  */
+static void compute_marginalized_chi2(ParamBFoRe *par, flouble *data, flouble *noise_w, flouble *x_spec, PixelState *pst)
 {
   int ipix;
 
-  pst->chi2=chi2_prior(par,pst,x_spec);
+  pst -> chi2 = chi2_prior(par, pst, x_spec);
+
   compute_f_matrix(par,x_spec,pst->f_matrix);
 
-  for(ipix=0;ipix<par->n_sub;ipix++) {
+  for (ipix = 0; ipix < par -> n_sub; ipix++)
+  {
     int ipol;
-    for(ipol=0;ipol<par->n_pol;ipol++) {
-      int ic1,inu;
-      int index_pix=ipol+par->n_pol*ipix;
-      gsl_matrix *mat_here=pst->cov_inv[index_pix];
-      gsl_vector *vec_here=pst->vec_mean[index_pix];
+    for (ipol = 0; ipol < par -> n_pol; ipol++)
+    {
+      int ic1, inu;
+      int index_pix = ipol + par -> n_pol * ipix;
+      gsl_matrix *mat_here = pst -> cov_inv[index_pix];
+      gsl_vector *vec_here = pst -> vec_mean[index_pix];
       gsl_matrix_set_zero(mat_here);
-      gsl_vector_set_zero(pst->vaux);
-      for(inu=0;inu<par->n_nu;inu++) {
-	int index_f=par->n_comp*(inu+par->n_nu*ipol);
-	flouble invsigma2=noise_w[inu+par->n_nu*index_pix];
-	flouble data_here=data[inu+par->n_nu*index_pix];
-	for(ic1=0;ic1<par->n_comp;ic1++) {
-	  int ic2;
-	  flouble fm1=pst->f_matrix[index_f+ic1];
-	  gsl_vector_set(pst->vaux,ic1,gsl_vector_get(pst->vaux,ic1)+fm1*data_here*invsigma2);
-	  for(ic2=0;ic2<=ic1;ic2++) {
-	    flouble fm2=pst->f_matrix[index_f+ic2];
-	    gsl_matrix_set(mat_here,ic1,ic2,gsl_matrix_get(mat_here,ic1,ic2)+fm1*fm2*invsigma2);
-	  }
-	}
+      gsl_vector_set_zero(pst -> vaux);
+      for(inu = 0; inu < par -> n_nu; inu++)
+      {
+        int index_f = par -> n_comp * (inu + par -> n_nu * ipol);
+        flouble invsigma2 = noise_w[inu + par -> n_nu * index_pix];
+        flouble data_here = data[inu + par -> n_nu * index_pix];
+        for(ic1 = 0; ic1 < par -> n_comp; ic1++)
+        {
+          int ic2;
+          flouble fm1 = pst -> f_matrix[index_f + ic1];
+          gsl_vector_set(pst -> vaux, ic1, gsl_vector_get(pst -> vaux, ic1) + fm1 * data_here * invsigma2);
+          for(ic2 = 0; ic2 <= ic1; ic2++)
+          {
+            flouble fm2 = pst -> f_matrix[index_f + ic2];
+            gsl_matrix_set(mat_here, ic1, ic2, gsl_matrix_get(mat_here, ic1, ic2) + fm1 * fm2 * invsigma2);
+          }
+        }
       }
       gsl_linalg_cholesky_decomp(mat_here);
       if(par->flag_include_volume_prior==0) {
@@ -400,31 +435,58 @@ static int draw_spectral_indices_marginal(ParamBFoRe *par,Rng *rng,flouble *data
   return 1;
 }
 
-static void restart_mcmc(ParamBFoRe *par,PixelState *pst,flouble *x_spec,gsl_matrix *mat_step,flouble factor)
+/** @brief restart the mcmc chain by setting all the working quantities to zero.
+  * @param par
+  * @param pst
+  * @param x_spec
+  * @param mat_step
+  * @param factor
+  * @return
+  */
+
+static void restart_mcmc(ParamBFoRe *par, PixelState *pst, flouble *x_spec, gsl_matrix *mat_step, flouble factor)
 {
-  x_spec[par->index_beta_s_t]=pst->prior_mean[par->index_beta_s_t];
-  x_spec[par->index_beta_d_t]=pst->prior_mean[par->index_beta_d_t];
-  x_spec[par->index_temp_d_t]=pst->prior_mean[par->index_temp_d_t];
-  if(par->n_spec_vary>0) {
+  // Reset to prior values.
+  x_spec[par -> index_beta_s_t] = pst -> prior_mean[par -> index_beta_s_t];
+  x_spec[par -> index_beta_d_t] = pst -> prior_mean[par -> index_beta_d_t];
+  x_spec[par -> index_temp_d_t] = pst -> prior_mean[par -> index_temp_d_t];
+
+  if (par -> n_spec_vary > 0)
+  {
     gsl_matrix_set_zero(mat_step);
-    if(par->flag_beta_s_free)
-      gsl_matrix_set(mat_step,par->index_beta_s_t,par->index_beta_s_t,par->beta_s_step*factor);
-    if(par->flag_beta_d_free)
-      gsl_matrix_set(mat_step,par->index_beta_d_t,par->index_beta_d_t,par->beta_d_step*factor);
-    if(par->flag_temp_d_free)
-      gsl_matrix_set(mat_step,par->index_temp_d_t,par->index_temp_d_t,par->temp_d_step*factor);
+    if (par -> flag_beta_s_free)
+    {
+      gsl_matrix_set(mat_step, par -> index_beta_s_t, par -> index_beta_s_t, par -> beta_s_step * factor);
+    }
+    if(par -> flag_beta_d_free)
+    {
+      gsl_matrix_set(mat_step, par -> index_beta_d_t, par -> index_beta_d_t, par -> beta_d_step * factor);
+    }
+    if(par -> flag_temp_d_free)
+    {
+      gsl_matrix_set(mat_step, par -> index_temp_d_t, par -> index_temp_d_t, par -> temp_d_step * factor);
+    }
   }
-  if(par->flag_include_polarization && par->flag_independent_polarization) {
-    x_spec[par->index_beta_s_p]=pst->prior_mean[par->index_beta_s_p];
-    x_spec[par->index_beta_d_p]=pst->prior_mean[par->index_beta_d_p];
-    x_spec[par->index_temp_d_p]=pst->prior_mean[par->index_temp_d_p];
-    if(par->n_spec_vary>0) {
-      if(par->flag_beta_s_free)
-	gsl_matrix_set(mat_step,par->index_beta_s_p,par->index_beta_s_p,par->beta_s_step*factor);
-      if(par->flag_beta_d_free)
-	gsl_matrix_set(mat_step,par->index_beta_d_p,par->index_beta_d_p,par->beta_d_step*factor);
-      if(par->flag_temp_d_free)
-	gsl_matrix_set(mat_step,par->index_temp_d_p,par->index_temp_d_p,par->temp_d_step*factor);
+
+  if (par -> flag_include_polarization && par -> flag_independent_polarization)
+  {
+    x_spec[par -> index_beta_s_p] = pst -> prior_mean[par -> index_beta_s_p];
+    x_spec[par -> index_beta_d_p] = pst -> prior_mean[par -> index_beta_d_p];
+    x_spec[par -> index_temp_d_p] = pst -> prior_mean[par -> index_temp_d_p];
+    if (par -> n_spec_vary > 0)
+    {
+      if (par -> flag_beta_s_free)
+      {
+        gsl_matrix_set(mat_step, par -> index_beta_s_p, par -> index_beta_s_p, par -> beta_s_step * factor);
+      }
+      if (par -> flag_beta_d_free)
+      {
+        gsl_matrix_set(mat_step, par -> index_beta_d_p, par -> index_beta_d_p, par -> beta_d_step * factor);
+      }
+      if (par -> flag_temp_d_free)
+      {
+        gsl_matrix_set(mat_step, par -> index_temp_d_p, par -> index_temp_d_p, par -> temp_d_step * factor);
+      }
     }
   }
 }
@@ -460,6 +522,10 @@ static FILE *open_region_file(ParamBFoRe *par,int ipix)
   return fo;
 }
 
+/** @brief structure grouping together chi squared quantities.
+  *
+  *
+  */
 typedef struct {
   ParamBFoRe *par;
   PixelState *pst;
@@ -471,33 +537,42 @@ typedef struct {
 
 static flouble chi2_marg_func(flouble *x,void *pars)
 {
-  ParamChi2 *p=(ParamChi2 *)pars;
-  memcpy(p->x_spec,x,p->par->n_spec_vary*sizeof(flouble));
-  compute_marginalized_chi2(p->par,p->data,p->noise_w,p->x_spec,p->pst);
-  return p->pst->chi2;
+  ParamChi2 *p = (ParamChi2 *)pars;
+  memcpy(p -> x_spec, x, p -> par -> n_spec_vary * sizeof(flouble));
+  compute_marginalized_chi2(p -> par, p -> data, p -> noise_w, p -> x_spec, p -> pst);
+  return p -> pst -> chi2;
 }
 
-static void get_ml_marginal(ParamBFoRe *par,flouble *data,flouble *noise_w,
-			    flouble *x_spec,PixelState *pst)
+/** @brief
+  * @param par instance of ParamBFoRe
+  * @param data data
+  * @param noise_w noise weights
+  * @param x_spec model prposal
+  * @param pst instance of PixelState
+  * @return
+  */
+static void get_ml_marginal(ParamBFoRe *par, flouble *data, flouble *noise_w, flouble *x_spec, PixelState *pst)
 {
   int ii;
   ParamChi2 pc2;
   PowellParams *par_pow;
 
-  pc2.par=par;
-  pc2.data=data;
-  pc2.noise_w=noise_w;
-  pc2.pst=pst;
-  pc2.x_spec=x_spec;
+  pc2.par = par;
+  pc2.data = data;
+  pc2.noise_w = noise_w;
+  pc2.pst = pst;
+  pc2.x_spec = x_spec;
 
-  par_pow=powell_params_new(par->n_spec_vary,x_spec,&chi2_marg_func,&pc2,100,1E-7);
+  par_pow = powell_params_new(par -> n_spec_vary, x_spec, &chi2_marg_func, &pc2, 100, 1E-7);
   powell(par_pow);
 
-  for(ii=0;ii<par->n_spec_vary;ii++)
-    x_spec[ii]=par_pow->p[ii];
+  for (ii = 0; ii < par -> n_spec_vary; ii++)
+  {
+    x_spec[ii] = par_pow -> p[ii];
+  }
   free_powell_params(par_pow);
 
-  compute_marginalized_chi2(par,data,noise_w,x_spec,pst);
+  compute_marginalized_chi2(par, data, noise_w, x_spec, pst);
 }
 
 void clean_pixel(ParamBFoRe *par,Rng *rng,PixelState *pst,int ipix_big)
@@ -756,12 +831,17 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
   // index of the output spectral parameter pixels we will need to write.
   // ip_spc + 0 for sync, ip_spc + 1 for dust index etc...
   int ip_spc = par -> n_spec_vary * ipix_big;
-  // n_sub is 
+  // n_sub is the ratio of pixels between base and spec resolution. Therefore
+  // id_cell is the number of pixels, at base resolution, in all the cells
+  // below it in T, Q, U.
   int id_cell = ipix_big * par -> n_sub * par -> n_pol;
+  // Get the the addresses of all the input data (data, noise_w), and the
+  // output produces (amps_mean, amps_covar, ...) in the parameter struct.
   flouble *data = &(par -> maps_data[id_cell * par -> n_nu]);
   flouble *noise_w = &(par -> maps_noise_weight[id_cell * par -> n_nu]);
   flouble *amps_mean = &(par -> map_components_mean[id_cell * par -> n_comp]);
   flouble *amps_covar = &(par -> map_components_covar[id_cell * par -> n_comp * par -> n_comp]);
+  // Declare some working quantities.
   flouble *x_spec_old = my_malloc(par -> n_param_max * sizeof(flouble));
   flouble *x_spec_ml = my_malloc(par -> n_param_max * sizeof(flouble));
   flouble *x_spec_new = my_malloc(par -> n_param_max * sizeof(flouble));
@@ -772,10 +852,17 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
   flouble factor_rescale = 2.4 / sqrt((double)(par -> n_spec_vary));
   int do_print = (ipix_big == par -> dbg_ipix);
 
+  // initialize the priors - reads the priors in par for the pixel we are
+  // considering into the prior_mean, prior_isigma, attributes of pst.
   init_priors(par, pst_old, ipix_big);
   init_priors(par, pst_new, ipix_big);
+
+  // set the amplitude mean and covariance arrays to zero for the indices we
+  // are considering.
   memset(amps_mean,0,par->n_sub*par->n_pol*par->n_comp*sizeof(flouble));
   memset(amps_covar,0,par->n_sub*par->n_pol*par->n_comp*par->n_comp*sizeof(flouble));
+
+  // reset the parameters used for mcmc sampling.
   restart_mcmc(par,pst_old,x_spec_old,mat_step,stepping_factor);
   get_ml_marginal(par,data,noise_w,x_spec_old,pst_old);
   memcpy(x_spec_ml,x_spec_old,par->n_param_max*sizeof(flouble));
@@ -983,38 +1070,3 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
   gsl_matrix_free(cov_save);
   gsl_matrix_free(cov_spec);
 }
-
-  /*
-#ifdef _DEBUG_SINGLEPIX
-#define NGRID_BETA_S 256
-#define NGRID_BETA_D 128
-#define BETA_S_MIN -1.5
-#define BETA_S_MAX -0.5
-#define BETA_D_MIN 1.5
-#define BETA_D_MAX 1.75
-  if(ipix_big==par->dbg_ipix) {
-    int isam,ip_s,ip_d;
-    char fffname[256];
-    FILE *fff;
-    double chiret[3];
-    flouble *x_spec_here=my_malloc(par->n_param_max*sizeof(flouble));
-
-    printf("Computing brute-force marginalized likelihood\n");
-    sprintf(fffname,"test_chi2_pix%d.txt",ipix_big);
-    fff=my_fopen(fffname,"w");
-    memcpy(x_spec_here,x_spec_old,par->n_param_max*sizeof(flouble));
-    for(ip_s=0;ip_s<NGRID_BETA_S;ip_s++) {
-      x_spec_here[par->index_beta_s_t]=BETA_S_MIN+
-	(BETA_S_MAX-BETA_S_MIN)*(ip_s+0.5)/NGRID_BETA_S;
-      for(ip_d=0;ip_d<NGRID_BETA_D;ip_d++) {
-	x_spec_here[par->index_beta_d_t]=BETA_D_MIN+
-	  (BETA_D_MAX-BETA_D_MIN)*(ip_d+0.5)/NGRID_BETA_D;
-	compute_marginalized_lpdf(par,data,noise_w,x_spec_here,pst);
-	fprintf(fff,"%lE \n",pst->chi2);
-      }
-    }
-    fclose(fff);
-    free(x_spec_here);
-  }
-#endif //_DEBUG_SINGLEPIX
-  */

@@ -235,6 +235,7 @@
     double (*fun)(double *,void *);
     void *params;
   } PowellParams;
+  
   void free_powell_params(PowellParams *par);
   PowellParams *powell_params_new(int n,flouble *p,flouble (*fun)(flouble *,void *),
   				void *params,int max_iter,flouble ftol);

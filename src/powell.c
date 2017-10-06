@@ -9,31 +9,34 @@
 #define LIN_ITMAX 100
 #define SIGN(a,b) ((b) >= 0.0 ? fabs(a) : -fabs(a))
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
-#define SHFT(a,b,c,d) (a)=(b);(b)=(c);(c)=(d);  
+#define SHFT(a,b,c,d) (a)=(b);(b)=(c);(c)=(d);
 
-static flouble get_powell_1d(PowellParams *par,flouble x)
+static flouble get_powell_1d(PowellParams *par, flouble x)
 {
   int j;
-  for(j=0;j<par->n;j++)
-    par->xdum[j]=par->p[j]+x*par->xdir[j];
-  
-  return (*(par->fun))(par->xdum,par->params);
+  for (j = 0; j < par -> n; j++)
+  {
+    par -> xdum[j] = par -> p[j] + x * par -> xdir[j];
+  }
+  return (*(par -> fun))(par -> xdum, par -> params);
 }
+
 
 void free_powell_params(PowellParams *par)
 {
   int i;
-  for(i=0;i<par->n;i++) 
-    free(par->xi[i]);
-  free(par->p);
-  free(par->xi);
-  free(par->xdum);
-  free(par->xdir);
+  for (i = 0; i < par -> n; i++)
+  {
+    free(par -> xi[i]);
+  }
+  free(par -> p);
+  free(par -> xi);
+  free(par -> xdum);
+  free(par -> xdir);
   free(par);
 }
 
-PowellParams *powell_params_new(int n,flouble *p,flouble (*fun)(flouble *,void *),
-				void *params,int max_iter,flouble ftol)
+PowellParams *powell_params_new(int n, flouble *p, flouble (*fun)(flouble *, void *), void *params, int max_iter, flouble ftol)
 {
   int ii;
   PowellParams *par=(PowellParams *)my_malloc(sizeof(PowellParams));
@@ -155,7 +158,7 @@ static flouble brent(PowellParams *par,flouble ax,flouble bx,
     }
     u=(fabs(d) >= tol1 ? x+d : x+SIGN(tol1,d));
     fu=get_powell_1d(par,u);
-    
+
     if(fu<=fx) {
       if(u>=x) a=x; else b=x;
       SHFT(v,w,x,u);
@@ -213,7 +216,7 @@ void powell(PowellParams *par)
     fp=par->fret;
     ibig=0;
     del=0; //Will become the biggest function decrease
-    for(i=0;i<par->n;i++) { 
+    for(i=0;i<par->n;i++) {
       for(j=0;j<par->n;j++) xit[j]=par->xi[j][i];
       fptt=par->fret;
       linmin(par,xit);
