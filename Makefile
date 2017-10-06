@@ -7,10 +7,10 @@ DEBUG_VERSION= yes
 DEBUG_SINGLEPIX= yes
 LIB_GSL= -L/users/damonge/lib
 INC_GSL= -I/users/damonge/include
-LIB_HP=
-INC_HP=
-LIB_FITS=
-INC_FITS=
+LIB_HP= -L/home/bthorne/Codes/Healpix_3.31/lib
+INC_HP= -L/home/bthorne/Codes/Healpix_3.31/include
+LIB_FITS= -L/usr/lib
+INC_FITS= -L/usr/include
 
 WOPT=$(WOPT_DEFAULT) -DHAVE_INLINE -DGSL_RANGE_CHECK_OFF
 ifeq ($(ADD_OMP),yes)
