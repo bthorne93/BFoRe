@@ -144,6 +144,7 @@ static flouble freq_evolve(int spec_type,double nu_0,double beta,double temp, do
     break;
   case 3 :
     return pow(nu/nu_0,beta-2.+curv*log(nu / nu_0));
+    break;
   }
   return -1;
 }
