@@ -18,6 +18,12 @@ static void decouple_covariance(ParamBFoRe *par,gsl_matrix *cov)
 	gsl_matrix_set(cov,par->index_beta_s_p,par->index_temp_d_t,0); //bsp,tdt
 	gsl_matrix_set(cov,par->index_temp_d_t,par->index_beta_s_p,0); //tdt,bsp
       }
+      if(par->flag_curv_s_free){
+        gsl_matrix_set(cov,par->index_beta_s_t,par->index_curv_s_p,0); //bst,csp
+      	gsl_matrix_set(cov,par->index_curv_s_p,par->index_beta_s_t,0); //csp,bst
+      	gsl_matrix_set(cov,par->index_beta_s_p,par->index_curv_s_t,0); //bsp,cst
+      	gsl_matrix_set(cov,par->index_curv_s_t,par->index_beta_s_p,0); //cst,bsp
+      }
     }
     if(par->flag_beta_d_free) {
       gsl_matrix_set(cov,par->index_beta_d_t,par->index_beta_d_p,0); //bdt-bdp
@@ -28,10 +34,26 @@ static void decouple_covariance(ParamBFoRe *par,gsl_matrix *cov)
 	gsl_matrix_set(cov,par->index_beta_d_p,par->index_temp_d_t,0); //bdp,tdt
 	gsl_matrix_set(cov,par->index_temp_d_t,par->index_beta_d_p,0); //tdt,bdp
       }
+      if(par->flag_curv_s_free){
+        gsl_matrix_set(cov,par->index_beta_d_t,par->index_curv_s_p,0); //bdt-csp
+      	gsl_matrix_set(cov,par->index_curv_s_p,par->index_beta_d_t,0); //csp,bdt
+      	gsl_matrix_set(cov,par->index_beta_d_p,par->index_curv_s_t,0); //bdp,cst
+      	gsl_matrix_set(cov,par->index_curv_s_t,par->index_beta_d_p,0); //cst,bdp
+      }
     }
     if(par->flag_temp_d_free) {
       gsl_matrix_set(cov,par->index_temp_d_t,par->index_temp_d_p,0); //tdt-tdp
       gsl_matrix_set(cov,par->index_temp_d_p,par->index_temp_d_t,0); //tdp-tdt
+      if(par->flag_curv_s_free){
+        gsl_matrix_set(cov,par->index_temp_d_t,par->index_curv_s_p,0); //tdt-csp
+      	gsl_matrix_set(cov,par->index_curv_s_p,par->index_temp_d_t,0); //csp,tdt
+      	gsl_matrix_set(cov,par->index_temp_d_p,par->index_curv_s_t,0); //tdp,cst
+      	gsl_matrix_set(cov,par->index_curv_s_t,par->index_temp_d_p,0); //cst,tdp
+      }
+    }
+    if(par->flag_curv_s_free) {
+      gsl_matrix_set(cov,par->index_curv_s_t,par->index_curv_s_p,0); //cst-csp
+      gsl_matrix_set(cov,par->index_curv_s_p,par->index_curv_s_t,0); //csp-cst
     }
   }
 }
