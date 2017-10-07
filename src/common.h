@@ -108,6 +108,7 @@
 
   int flag_include_cmb; //Include CMB in sky model?
   int flag_include_synchrotron; //Incude synchrotron in sky model?
+  int flag_include_curvature; //Do we have synchrotron curvature?
   int flag_include_dust; //Include dust in sky model?
   int flag_include_volume_prior; //Use volume (Jeffeys) prior?
   int flag_use_marginal; //Sample spectral indices from marginal distribution?
