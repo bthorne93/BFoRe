@@ -733,7 +733,7 @@ ParamBFoRe *read_params(char *fname)
     }
 
     // curv_s T
-    if (par -> include_curvature)
+    if (par -> flag_include_curvature)
     {
       map_dum = he_read_healpix_map(par -> input_curv_s_t_prior, &nside_dum, 0);
       if (nside_dum != par -> nside_spec)
