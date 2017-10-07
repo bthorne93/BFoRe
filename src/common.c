@@ -36,7 +36,7 @@ void dbg_printf(int do_print,char *fmt,...)
   if(do_print) {
     va_list args;
     char msg[256];
-    
+
     va_start(args,fmt);
     vsprintf(msg,fmt,args);
     va_end(args);
@@ -53,7 +53,7 @@ void report_error(int level,char *fmt,...)
   va_start(args,fmt);
   vsprintf(msg,fmt,args);
   va_end(args);
-  
+
   if(level) {
     fprintf(stderr," Fatal error: %s",msg);
     exit(level);
@@ -98,7 +98,7 @@ static ParamBFoRe *param_bfore_new(void)
   par->n_pix=786432;
   par->n_pix_spec=49152;
   par->n_pix_spec_unmasked=49152;
-  
+
   sprintf(par->input_data_prefix,"default");
   par->maps_data=NULL;
 
@@ -110,6 +110,8 @@ static ParamBFoRe *param_bfore_new(void)
 
   sprintf(par->input_beta_s_t_prior,"default");
   sprintf(par->input_beta_s_p_prior,"default");
+  sprintf(par->input_curv_s_t_prior,"default");
+  sprintf(par->input_curv_s_p_prior,"default");
   sprintf(par->input_beta_d_t_prior,"default");
   sprintf(par->input_beta_d_p_prior,"default");
   sprintf(par->input_temp_d_t_prior,"default");
@@ -128,7 +130,7 @@ static ParamBFoRe *param_bfore_new(void)
   sprintf(par->fname_nulist,"default");
   par->n_nu=-1;
   par->freqs=NULL;
-  
+
   par->flag_include_polarization=0;
   par->n_pol=1;
 
@@ -144,6 +146,7 @@ static ParamBFoRe *param_bfore_new(void)
 
   par->flag_independent_polarization=0;
   par->flag_beta_s_free=0;
+  par->flag_curv_s_free=0;
   par->flag_beta_d_free=0;
   par->flag_temp_d_free=0;
   par->n_param_max=0;
@@ -151,12 +154,15 @@ static ParamBFoRe *param_bfore_new(void)
   par->n_dof_pix=0;
   par->index_beta_s_t=-1;
   par->index_beta_s_p=-1;
+  par->index_curv_s_t=-1;
+  par->index_curv_s_p=-1;
   par->index_beta_d_t=-1;
   par->index_beta_d_p=-1;
   par->index_temp_d_t=-1;
   par->index_temp_d_p=-1;
-  
+
   par->beta_s_step=0.1;
+  par->curv_s_step=0.1;
   par->beta_d_step=0.1;
   par->temp_d_step=0.1;
   par->nu0_s=23.;
@@ -176,7 +182,7 @@ static ParamBFoRe *param_bfore_new(void)
   par->ra_dbg_ipix=0;
   par->dbg_ipix=0;
   par->dbg_extra=NULL;
-  
+
   return par;
 }
 
@@ -202,7 +208,7 @@ static void param_bfore_print(ParamBFoRe *par)
   printf(" - Frequency list: %s\n",par->fname_nulist);
   if(par->flag_include_polarization)
     printf(" - Will include T, Q and U\n");
-  else 
+  else
     printf(" - Will only include T\n");
   if(par->flag_independent_polarization)
     printf(" - Independent spectral parameters for polarization\n");
@@ -218,12 +224,17 @@ static void param_bfore_print(ParamBFoRe *par)
     printf("    beta_s : (%d) [%s,",par->index_beta_s_t,par->input_beta_s_t_prior);
     printf(",%s]",par->input_beta_s_p_prior);
     printf(", D(beta_s) = %.3lf\n",par->beta_s_step);
-  }      
+  }
+  if(par->flag_include_synchrotron && par->flag_beta_s_free && par->flag_include_curvature && par->flag_curv_s_free) {
+    printf("    curv_s : (%d) [%s,",par->index_curv_s_t,par->input_curv_s_t_prior);
+    printf(",%s]",par->input_curv_s_p_prior);
+    printf(", D(curv_s) = %.3lf\n",par->curv_s_step);
+  }
   if(par->flag_include_dust && par->flag_beta_d_free) {
     printf("    beta_d : (%d) [%s,",par->index_beta_d_t,par->input_beta_d_t_prior);
     printf(",%s]",par->input_beta_d_p_prior);
     printf(", D(beta_d) = %.3lf\n",par->beta_d_step);
-  }      
+  }
   if(par->flag_include_dust && par->flag_temp_d_free) {
     printf("    temp_d : (%d)[%s,",par->index_temp_d_t,par->input_temp_d_t_prior);
     printf(",%s]",par->input_temp_d_p_prior);
@@ -296,8 +307,12 @@ ParamBFoRe *read_params(char *fname)
       sprintf(par->input_noise_prefix,"%s",s2);
     else if(!strcmp(s1,"input_beta_s_t_prior="))
       sprintf(par->input_beta_s_t_prior,"%s",s2);
+      else if(!strcmp(s1,"input_curv_s_t_prior="))
+        sprintf(par->input_curv_s_t_prior,"%s",s2);
     else if(!strcmp(s1,"input_beta_s_p_prior="))
       sprintf(par->input_beta_s_p_prior,"%s",s2);
+      else if(!strcmp(s1,"input_curv_s_p_prior="))
+        sprintf(par->input_curv_s_p_prior,"%s",s2);
     else if(!strcmp(s1,"input_beta_d_t_prior="))
       sprintf(par->input_beta_d_t_prior,"%s",s2);
     else if(!strcmp(s1,"input_beta_d_p_prior="))
@@ -328,6 +343,8 @@ ParamBFoRe *read_params(char *fname)
       par->flag_use_marginal=atoi(s2);
     else if(!strcmp(s1,"beta_s_free="))
       par->flag_beta_s_free=atoi(s2);
+      else if(!strcmp(s1,"curv_s_free="))
+        par->flag_curv_s_free=atoi(s2);
     else if(!strcmp(s1,"beta_d_free="))
       par->flag_beta_d_free=atoi(s2);
     else if(!strcmp(s1,"temp_d_free="))
@@ -337,7 +354,7 @@ ParamBFoRe *read_params(char *fname)
     else if(!strcmp(s1,"nu0_dust="))
       par->nu0_d=atof(s2);
     else if(!strcmp(s1,"nside="))
-      par->nside=atoi(s2); 
+      par->nside=atoi(s2);
     else if(!strcmp(s1,"nside_spec="))
       par->nside_spec=atoi(s2);
     else if(!strcmp(s1,"seed="))
@@ -354,6 +371,8 @@ ParamBFoRe *read_params(char *fname)
       par->n_output_rate=atoi(s2);
     else if(!strcmp(s1,"beta_s_step="))
       par->beta_s_step=atof(s2);
+      else if(!strcmp(s1,"curv_s_step="))
+        par->curv_s_step=atof(s2);
     else if(!strcmp(s1,"beta_d_step="))
       par->beta_d_step=atof(s2);
     else if(!strcmp(s1,"temp_d_step="))
@@ -429,10 +448,10 @@ ParamBFoRe *read_params(char *fname)
     par->n_comp++;
   }
 
-  par->n_param_max=3;
+  par->n_param_max=4;
   if(par->flag_independent_polarization)
     par->n_param_max*=2;
-    
+
   int index_novary=par->n_param_max;
   par->n_spec_vary=0;
   if(par->flag_include_synchrotron) {
@@ -440,6 +459,10 @@ ParamBFoRe *read_params(char *fname)
       par->index_beta_s_t=par->n_spec_vary++;
     else
       par->index_beta_s_t=--index_novary;
+    if(par->flag_curv_s_free)
+      par->index_curv_s_t=par->n_spec_vary++;
+    else
+      par->index_curv_s_t=--index_novary;
   }
   if(par->flag_include_dust) {
     if(par->flag_beta_d_free)
@@ -457,6 +480,10 @@ ParamBFoRe *read_params(char *fname)
 	par->index_beta_s_p=par->n_spec_vary++;
       else
 	par->index_beta_s_p=--index_novary;
+      if(par->flag_curv_s_free)
+  par->index_curv_s_p=par->n_spec_vary++;
+      else
+  par->index_curv_s_p=--index_novary;
     }
     if(par->flag_include_dust) {
       if(par->flag_beta_d_free)
@@ -471,6 +498,7 @@ ParamBFoRe *read_params(char *fname)
   }
   else {
     par->index_beta_s_p=par->index_beta_s_t;
+    par->index_curv_s_p=par->index_curv_s_t;
     par->index_beta_d_p=par->index_beta_d_t;
     par->index_temp_d_p=par->index_temp_d_t;
   }
@@ -595,6 +623,40 @@ ParamBFoRe *read_params(char *fname)
       free(map_dum);
     }
   }
+
+  // curv_s T,P
+  if(par->flag_include_curvature) {
+    map_dum=he_read_healpix_map(par->input_curv_s_t_prior,&nside_dum,0);
+    if(nside_dum!=par->nside_spec)
+      report_error(1,"Read wrong nside\n");
+    he_ring2nest_inplace(map_dum,nside_dum);
+    for(ii=0;ii<par->n_pix_spec;ii++)
+      par->map_prior_centres[par->index_curv_s_t+par->n_param_max*ii]=map_dum[ii];
+    free(map_dum);
+    map_dum=he_read_healpix_map(par->input_curv_s_t_prior,&nside_dum,1);
+    if(nside_dum!=par->nside_spec)
+      report_error(1,"Read wrong nside\n");
+    he_ring2nest_inplace(map_dum,nside_dum);
+    for(ii=0;ii<par->n_pix_spec;ii++)
+      par->map_prior_widths[par->index_curv_s_t+par->n_param_max*ii]=map_dum[ii];
+    free(map_dum);
+    if(par->flag_include_polarization && par->flag_independent_polarization) {
+      map_dum=he_read_healpix_map(par->input_curv_s_p_prior,&nside_dum,0);
+      if(nside_dum!=par->nside_spec)
+	report_error(1,"Read wrong nside\n");
+      he_ring2nest_inplace(map_dum,nside_dum);
+      for(ii=0;ii<par->n_pix_spec;ii++)
+	par->map_prior_centres[par->index_curv_s_p+par->n_param_max*ii]=map_dum[ii];
+      free(map_dum);
+      map_dum=he_read_healpix_map(par->input_curv_s_p_prior,&nside_dum,1);
+      if(nside_dum!=par->nside_spec)
+	report_error(1,"Read wrong nside\n");
+      he_ring2nest_inplace(map_dum,nside_dum);
+      for(ii=0;ii<par->n_pix_spec;ii++)
+	par->map_prior_widths[par->index_curv_s_p+par->n_param_max*ii]=map_dum[ii];
+      free(map_dum);
+    }
+  }
   if(par->flag_include_dust) {
     //beta_d T,P
     map_dum=he_read_healpix_map(par->input_beta_d_t_prior,&nside_dum,0);
@@ -703,11 +765,11 @@ static void write_debug_info(ParamBFoRe *par)
   my_fwrite(&(par->n_spec_vary),sizeof(par->n_spec_vary),1,fo);
   my_fwrite(&(par->n_samples),sizeof(par->n_samples),1,fo);
   my_fwrite(&(par->n_samples_burn),sizeof(par->n_samples_burn),1,fo);
-  
+
   //Write spectral chains
   my_fwrite(par->dbg_extra,sizeof(flouble),
 	    (par->n_samples+par->n_samples_burn)*par->n_spec_vary,fo);
-  
+
   //Write spectral mean
   my_fwrite(&(par->map_indices_mean[par->dbg_ipix*par->n_spec_vary]),sizeof(flouble),
 	    par->n_spec_vary,fo);
@@ -719,7 +781,7 @@ static void write_debug_info(ParamBFoRe *par)
   //Write amplitudes mean
   my_fwrite(&(par->map_components_mean[par->dbg_ipix*par->n_comp*par->n_pol*par->n_sub]),
 	    sizeof(flouble),par->n_comp*par->n_pol*par->n_sub,fo);
-  
+
   //Write amplitudes covar
   my_fwrite(&(par->map_components_covar[par->dbg_ipix*par->n_comp*par->n_comp*
 					par->n_pol*par->n_sub]),sizeof(flouble),
@@ -728,7 +790,7 @@ static void write_debug_info(ParamBFoRe *par)
   //Write input data
   my_fwrite(&(par->maps_data[par->dbg_ipix*par->n_nu*par->n_pol*par->n_sub]),sizeof(flouble),
 	    par->n_nu*par->n_pol*par->n_sub,fo);
-  
+
   //Write input noise weights
   my_fwrite(&(par->maps_noise_weight[par->dbg_ipix*par->n_nu*par->n_pol*par->n_sub]),
 	    sizeof(flouble),par->n_nu*par->n_pol*par->n_sub,fo);
@@ -837,7 +899,7 @@ static void write_moments(ParamBFoRe *par)
       for(is1=0;is1<par->n_spec_vary;is1++)
 	free(map_out[is1]);
       free(map_out);
-      
+
       //Write output spectral covariances
       sprintf(fname,"!%s_spec_covar.fits",par->output_prefix);
       ncorr=par->n_spec_vary*(par->n_spec_vary+1)/2;
