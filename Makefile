@@ -41,10 +41,10 @@ BFOREO= src/bfore.o
 MAINO= src/main.o
 OBJ= $(COMMONO) $(HEO) $(RNGO) $(POWELLO) $(BFOREO) $(MAINO)
 
-EXEC= BFoRe_db
+EXEC= BFoRe
 all: $(EXEC)
 
-BFoRe_db : $(OBJ)
+BFoRe : $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) $(LIBS) -o $@
 
 clean :

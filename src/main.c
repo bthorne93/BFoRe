@@ -79,7 +79,7 @@ int main(int argc, char **argv)
   */
   char fname_init[256];
 
-  if(argc != 2)
+  if(argc! = 2)
   {
     // Check command line inputs.
     printf("Usage: bfore.x param_file\n");
@@ -167,15 +167,16 @@ int main(int argc, char **argv)
     for(ipix_big = par -> ipix_0; ipix_big < par -> ipix_f; ipix_big++)
 #endif //_DEBUG_SINGLEPIX
     {
-	     printf("Node %d, thread %d, pixel %d\n", NodeThis, ithr, ipix_big);
+      int ip = par -> ipix_unmasked[ipix_big];
+      printf("Node %d, thread %d, pixel %d\n", NodeThis, ithr, ip);
        if (par -> flag_use_marginal)
        {
          // clean the ipix_big^th pixel using the marginal method.
-         clean_pixel_from_marginal(par, rng, pst_old[ithr], pst_new[ithr], ipix_big);
+         clean_pixel_from_marginal(par, rng, pst_old[ithr], pst_new[ithr], ip);
        }
        else
        {
-         clean_pixel(par, rng, pst_old[ithr], ipix_big);
+         clean_pixel(par, rng, pst_old[ithr], ip);
        }
      } //end omp for
      end_rng(rng);

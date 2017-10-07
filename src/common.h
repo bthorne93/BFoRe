@@ -25,8 +25,10 @@
   #include <gsl/gsl_matrix.h>
   #include <gsl/gsl_linalg.h>
   #include <gsl/gsl_blas.h>
+  #include <gsl/gsl_deriv.h>
   #include <gsl/gsl_multifit.h>
   #include <gsl/gsl_multimin.h>
+  #include "chealpix.h"
 
   #ifdef _WITH_OMP
     #include <omp.h>
@@ -61,106 +63,91 @@
   extern int IThread0;
 
   typedef struct {
-    // nside on which amplitudes vary
-    int nside;
-    // nside on which spectral parameter vary
-    int nside_spec;
-    //
-    int n_side_sub;
-    //  square of the ratio between nsides
-    int n_sub;
-    // number of pixels at base resolution
-    int n_pix;
-    // number of pixels at spectral parameter resolution
-    int n_pix_spec;
+  int nside; //Map nside
+  int nside_spec; //Nside for spectral indices
+  int n_side_sub; //Number of sub_pixels per side in each spectral index pixel
+  int n_sub; //Number of sub_pixels in each spectral index pixel
+  int n_pix; //Number of pixels per map
+  int n_pix_spec; //Number of spectral index pixels
+  int n_pix_spec_unmasked; //Number of unmasked spectral index pixels
 
-    // prefix for the input data. This should be a path to a file
-    // with the ending %03d.fits, but not including that ending.
-    char input_data_prefix[256];
-    // data vector containing the input maps.
-    flouble *maps_data;
+  char input_data_prefix[256]; //Prefix pointing to the data maps
+  flouble *maps_data; //Data frequency maps
 
-    // prefix for the input noise maps.
-    char input_noise_prefix[256];
-    // data vector containing the noise level maps.
-    flouble *maps_noise_weight;
+  char input_noise_prefix[256]; //Prefix pointing to the noixe variance maps
+  flouble *maps_noise_weight; //Noise weight maps (basically 1/noise_variance_per_pixel)
 
-    char input_beta_s_t_prior[256];
-    char input_beta_s_p_prior[256];
-    char input_curv_s_t_prior[256];
-    char input_curv_s_p_prior[256];
-    char input_beta_d_t_prior[256];
-    char input_beta_d_p_prior[256];
-    char input_temp_d_t_prior[256];
-    char input_temp_d_p_prior[256];
-    flouble *map_prior_centres;
-    flouble *map_prior_widths;
+  char input_beta_s_t_prior[256]; //Path to prior map on beta_s (temperature)
+  char input_beta_s_p_prior[256]; //Path to prior map on beta_s (polarization)
+  char input_beta_d_t_prior[256]; //Path to prior map on beta_d (temperature)
+  char input_beta_d_p_prior[256]; //Path to prior map on beta_d (polarization)
+  char input_temp_d_t_prior[256]; //Path to prior map on temp_d (temperature)
+  char input_temp_d_p_prior[256]; //Path to prior map on temp_d (polarization)
+  flouble *map_prior_centres; //Maps of the spectral index prior mean
+  flouble *map_prior_widths; //Maps of the spectral index prior width
 
-    char output_prefix[256];
-    int flag_write_samples;
-    flouble *map_components_mean;
-    flouble *map_components_covar;
-    flouble *map_indices_mean;
-    flouble *map_indices_covar;
-    flouble *map_chi2;
+  char input_mask_fname[256]; //Mask filename
+  int *ipix_unmasked; //Indices of unmasked pixels
 
-    char fname_nulist[256];
-    int n_nu;
-    flouble *freqs;
+  char output_prefix[256]; //Output prefix
+  int flag_write_samples; //Do we want to output samples?
+  flouble *map_components_mean; //Mean of amplitudes
+  flouble *map_components_covar; //Covariance of amplitudes
+  flouble *map_indices_mean; //Mean of spectral indices
+  flouble *map_indices_covar; //Covariance of spectral indices
+  flouble *map_chi2; //Chi^2 map
 
-    int flag_include_polarization;
-    int n_pol;
+  char fname_nulist[256]; //File containing frequencies
+  int n_nu; //Number of frequencies
+  flouble *freqs; //Frequencies
 
-    int flag_include_cmb;
-    int flag_include_synchrotron;
-    int flag_include_curvature;
-    int flag_include_dust;
-    int flag_include_volume_prior;
-    int flag_use_marginal;
-    int n_comp;
-    int index_cmb;
-    int index_synchrotron;
-    int index_dust;
+  int flag_include_polarization; //Do we have polarization?
+  int n_pol; //Number of polarization channels (1-> T, 3-> T,Q,U)
 
-    int flag_independent_polarization;
-    int flag_beta_s_free;
-    int flag_curv_s_free;
-    int flag_beta_d_free;
-    int flag_temp_d_free;
-    int n_param_max;
-    // number of spectral parameters to be fitted.
-    int n_spec_vary;
-    int n_dof_pix;
-    int index_beta_s_t;
-    int index_beta_s_p;
-    int index_curv_s_t;
-    int index_curv_s_p;
-    int index_beta_d_t;
-    int index_beta_d_p;
-    int index_temp_d_t;
-    int index_temp_d_p;
-    flouble beta_s_step;
-    flouble curv_s_step;
-    flouble beta_d_step;
-    flouble temp_d_step;
-    flouble nu0_s;
-    flouble nu0_d;
+  int flag_include_cmb; //Include CMB in sky model?
+  int flag_include_synchrotron; //Incude synchrotron in sky model?
+  int flag_include_dust; //Include dust in sky model?
+  int flag_include_volume_prior; //Use volume (Jeffeys) prior?
+  int flag_use_marginal; //Sample spectral indices from marginal distribution?
+  int n_comp; //Number of components (up to 3)
+  int index_cmb; //Index for CMB component
+  int index_synchrotron; //Index for synchrotron component
+  int index_dust; //Index for dust component
 
-    unsigned long seed;
-    int n_samples;
-    int n_output_rate;
-    flouble frac_samples_burn;
-    int n_update_covar;
-    int n_samples_burn;
-    int n_spec_resample;
+  int flag_independent_polarization; //Assume independent spectral indices in polarization?
+  int flag_beta_s_free; //Is beta_s free?
+  int flag_beta_d_free; //Is beta_d free?
+  int flag_temp_d_free; //Is temp_d free?
+  int n_param_max; //Maximum number of parameters to sample
+  int n_spec_vary; //Number of free spectral indices
+  int n_dof_pix; //Number of degrees of freedom per spectral index pixel
+  int index_beta_s_t; //Index for beta_s (temperature)
+  int index_beta_s_p; //Index for beta_s (polarization)
+  int index_beta_d_t; //Index for beta_d (temperature)
+  int index_beta_d_p; //Index for beta_d (polarization)
+  int index_temp_d_t; //Index for temp_d (temperature)
+  int index_temp_d_p; //Index for temp_d (polarization)
+  flouble beta_s_step; //Initial step size in beta_s
+  flouble beta_d_step; //Initial step size in beta_d
+  flouble temp_d_step; //Initial step size in temp_d
+  flouble nu0_s; //Reference frequency for synchrotron
+  flouble nu0_d; //Reference frequency for dust
 
-    // first and last large pixel that an individual process is responsible
-    // for cleaning.
-    int ipix_0;
-    int ipix_f;
+  unsigned long seed; //Seed
+  int n_samples; //Total number of samples per spectral index pixel
+  int n_output_rate; //Output sample every so many samples
+  flouble frac_samples_burn; //Fraction of samples used for burning
+  int n_samples_burn; //Number of samples used for burning
+  int n_update_covar; //Number of samples used to compute the initial covariance matrix
+  int n_spec_resample; //Number of spectral index samples takeng for each amplitudes sample
 
-    int dbg_ipix;
-    flouble *dbg_extra;
+  int ipix_0; //First pixel corresponding to this node
+  int ipix_f; //Last pixel for this node (this one actually corresponds to the next node)
+
+  flouble dec_dbg_ipix;
+  flouble ra_dbg_ipix;
+  long dbg_ipix; //Pixel index used for debugging
+  flouble *dbg_extra;
   } ParamBFoRe;
 
   //Defined in common.c
@@ -250,14 +237,14 @@
 
   //Defined in bfore.c
   typedef struct {
-    flouble *f_matrix;
-    gsl_matrix **cov_inv;
-    gsl_vector **vec_mean;
-    flouble *prior_mean;
-    flouble *prior_isigma;
-    flouble *rand_spec;
-    gsl_vector *vaux;
-    double chi2;
+    flouble *f_matrix; //Frequency evolution matrix
+    gsl_matrix **cov_inv; //Set of covariance matrices for component amplitudes (one per pixel)
+     gsl_vector **vec_mean; //Set of vectors of mean component amplitudes (one per pixel)
+    flouble *prior_mean; //Prior mean (one per spectral param)
+    flouble *prior_isigma; //1/sigma of prior (one per spectral param)
+    flouble *rand_spec; //Dummy array to fill with random numbers (one element per spectral param)
+    gsl_vector *vaux; //Dummy vector (one element per component)
+     double chi2; //Pixel chi2
   } PixelState;
 
   /** @brief function to allocate memory for a PixelState struct.
