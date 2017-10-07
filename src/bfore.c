@@ -3,19 +3,27 @@
 static void init_priors(ParamBFoRe *par, PixelState *pst, int ipix_big)
 {
   pst -> prior_mean[par -> index_beta_s_t] = par -> map_prior_centres[par -> index_beta_s_t + par -> n_param_max * ipix_big];
-
-  if (par->flag_beta_s_free)
+  // Add in the synchroton index priors
+  if (par -> flag_beta_s_free)
   {
     pst -> prior_isigma[par -> index_beta_s_t] = 1. / par -> map_prior_widths[par -> index_beta_s_t + par -> n_param_max * ipix_big];
   }
 
-  pst -> prior_mean[par -> index_beta_d_t] = par -> map_prior_centres[par -> index_beta_d_t + par -> n_param_max * ipix_big];
+  // Add in the curvature priors
+  pst -> prior_mean[par -> index_curv_s_t] = par -> map_prior_centres[par -> index_curv_s_t + par -> n_param_max * ipix_big];
+  if (par -> flag_curv_s_free)
+  {
+    pst -> prior_isigma[par -> index_curv_s_t] = 1. / par -> map_prior_widths[par -> index_curv_s_t + par -> n_param_max * ipix_big];
+  }
 
+  // Add in dust index priors
+  pst -> prior_mean[par -> index_beta_d_t] = par -> map_prior_centres[par -> index_beta_d_t + par -> n_param_max * ipix_big];
   if (par -> flag_beta_d_free)
   {
     pst -> prior_isigma[par -> index_beta_d_t] = 1. / par -> map_prior_widths[par -> index_beta_d_t + par -> n_param_max * ipix_big];
   }
 
+  // Add in dust temperature priors
   pst -> prior_mean[par -> index_temp_d_t] = par -> map_prior_centres[par -> index_temp_d_t + par -> n_param_max * ipix_big];
 
   if (par -> flag_temp_d_free)
@@ -23,12 +31,18 @@ static void init_priors(ParamBFoRe *par, PixelState *pst, int ipix_big)
     pst -> prior_isigma[par -> index_temp_d_t] = 1. / par -> map_prior_widths[par -> index_temp_d_t + par->n_param_max*ipix_big];
   }
 
+  // And do the same for polarization if it is independent of temperature
   if (par -> flag_include_polarization && par -> flag_independent_polarization)
   {
     pst -> prior_mean[par -> index_beta_s_p] = par -> map_prior_centres[par -> index_beta_s_p + par -> n_param_max * ipix_big];
     if (par -> flag_beta_s_free)
     {
       pst -> prior_isigma[par -> index_beta_s_p] = 1. / par -> map_prior_widths[par -> index_beta_s_p + par -> n_param_max * ipix_big];
+    }
+    pst -> prior_mean[par -> index_curv_s_p] = par -> map_prior_centres[par -> index_curv_s_p + par -> n_param_max * ipix_big];
+    if (par -> flag_curv_s_free)
+    {
+      pst -> prior_isigma[par -> index_curv_s_p] = 1. / par -> map_prior_widths[par -> index_curv_s_p + par -> n_param_max * ipix_big];
     }
     pst -> prior_mean[par -> index_beta_d_p] = par -> map_prior_centres[par -> index_beta_d_p + par -> n_param_max * ipix_big];
     if (par -> flag_beta_d_free)
@@ -138,10 +152,21 @@ static void compute_f_matrix(ParamBFoRe *par, flouble *x_spec, flouble *f_matrix
     }
     if (par -> flag_include_synchrotron)
     {
-      f_matrix[par -> index_synchrotron + par -> n_comp * (inu + 0 * par -> n_nu)] = freq_evolve(1, par -> nu0_s, x_spec[par -> index_beta_s_t], -1, -1, nu);
-      for (ipol = 1; ipol < par -> n_pol; ipol++)
+      if (par -> flag_include_curvature)
       {
-        f_matrix[par -> index_synchrotron + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(1, par -> nu0_s, x_spec[par -> index_beta_s_p], -1, -1, nu);
+        f_matrix[par -> index_synchrotron + par -> n_comp * (inu + 0 * par -> n_nu)] = freq_evolve(3, par -> nu0_s, x_spec[par -> index_beta_s_t], -1, x_spec[par -> index_curv_s_t], nu);
+        for (ipol = 1; ipol < par -> n_pol; ipol++)
+        {
+          f_matrix[par -> index_synchrotron + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(3, par -> nu0_s, x_spec[par -> index_beta_s_p], -1, x_spec[par -> index_curv_s_p], nu);
+        }
+      }
+      else
+      {
+        f_matrix[par -> index_synchrotron + par -> n_comp * (inu + 0 * par -> n_nu)] = freq_evolve(1, par -> nu0_s, x_spec[par -> index_beta_s_t], -1, -1, nu);
+        for (ipol = 1; ipol < par -> n_pol; ipol++)
+        {
+          f_matrix[par -> index_synchrotron + par -> n_comp * (inu + ipol * par -> n_nu)] = freq_evolve(1, par -> nu0_s, x_spec[par -> index_beta_s_p], -1, -1, nu);
+        }
       }
     }
     if (par -> flag_include_dust)
@@ -469,6 +494,7 @@ static void restart_mcmc(ParamBFoRe *par, PixelState *pst, flouble *x_spec, gsl_
 {
   // Reset to prior values.
   x_spec[par -> index_beta_s_t] = pst -> prior_mean[par -> index_beta_s_t];
+  x_spec[par -> index_curv_s_t] = pst -> prior_mean[par -> index_curv_s_t];
   x_spec[par -> index_beta_d_t] = pst -> prior_mean[par -> index_beta_d_t];
   x_spec[par -> index_temp_d_t] = pst -> prior_mean[par -> index_temp_d_t];
 
@@ -478,6 +504,10 @@ static void restart_mcmc(ParamBFoRe *par, PixelState *pst, flouble *x_spec, gsl_
     if (par -> flag_beta_s_free)
     {
       gsl_matrix_set(mat_step, par -> index_beta_s_t, par -> index_beta_s_t, par -> beta_s_step * factor);
+    }
+    if (par -> flag_curv_s_free)
+    {
+      gsl_matrix_set(mat_step, par -> index_curv_s_t, par -> index_curv_s_t, par -> curv_s_step * factor);
     }
     if(par -> flag_beta_d_free)
     {
@@ -492,6 +522,7 @@ static void restart_mcmc(ParamBFoRe *par, PixelState *pst, flouble *x_spec, gsl_
   if (par -> flag_include_polarization && par -> flag_independent_polarization)
   {
     x_spec[par -> index_beta_s_p] = pst -> prior_mean[par -> index_beta_s_p];
+    x_spec[par -> index_curv_s_p] = pst -> prior_mean[par -> index_curv_s_p];
     x_spec[par -> index_beta_d_p] = pst -> prior_mean[par -> index_beta_d_p];
     x_spec[par -> index_temp_d_p] = pst -> prior_mean[par -> index_temp_d_p];
     if (par -> n_spec_vary > 0)
@@ -499,6 +530,10 @@ static void restart_mcmc(ParamBFoRe *par, PixelState *pst, flouble *x_spec, gsl_
       if (par -> flag_beta_s_free)
       {
         gsl_matrix_set(mat_step, par -> index_beta_s_p, par -> index_beta_s_p, par -> beta_s_step * factor);
+      }
+      if (par -> flag_curv_s_free)
+      {
+        gsl_matrix_set(mat_step, par -> index_curv_s_p, par -> index_curv_s_p, par -> curv_s_step * factor);
       }
       if (par -> flag_beta_d_free)
       {

@@ -102,6 +102,8 @@ static ParamBFoRe *param_bfore_new(void)
 
   sprintf(par->input_beta_s_t_prior,"default");
   sprintf(par->input_beta_s_p_prior,"default");
+  sprintf(par->input_curv_s_t_prior,"default");
+  sprintf(par->input_curv_s_p_prior,"default");
   sprintf(par->input_beta_d_t_prior,"default");
   sprintf(par->input_beta_d_p_prior,"default");
   sprintf(par->input_temp_d_t_prior,"default");
@@ -139,6 +141,7 @@ static ParamBFoRe *param_bfore_new(void)
 
   par->flag_independent_polarization=0;
   par->flag_beta_s_free=0;
+  par->flag_curv_s_free=0;
   par->flag_beta_d_free=0;
   par->flag_temp_d_free=0;
   par->n_param_max=0;
@@ -146,12 +149,15 @@ static ParamBFoRe *param_bfore_new(void)
   par->n_dof_pix=0;
   par->index_beta_s_t=-1;
   par->index_beta_s_p=-1;
+  par->index_curv_s_t=-1;
+  par->index_curv_s_p=-1;
   par->index_beta_d_t=-1;
   par->index_beta_d_p=-1;
   par->index_temp_d_t=-1;
   par->index_temp_d_p=-1;
 
   par->beta_s_step=0.1;
+  par->curv_s_step=0.1;
   par->beta_d_step=0.1;
   par->temp_d_step=0.1;
   par->nu0_s=23.;
@@ -208,6 +214,11 @@ static void param_bfore_print(ParamBFoRe *par)
     printf("    beta_s : (%d) [%s,",par->index_beta_s_t,par->input_beta_s_t_prior);
     printf(",%s]",par->input_beta_s_p_prior);
     printf(", D(beta_s) = %.3lf\n",par->beta_s_step);
+  }
+  if(par->flag_include_synchrotron && par->flag_beta_s_free && par -> flag_include_curvature && par -> flag_curv_s_free) {
+    printf("    curv_s : (%d) [%s,",par->index_curv_s_t,par->input_curv_s_t_prior);
+    printf(",%s]",par->input_curv_s_p_prior);
+    printf(", D(curv_s) = %.3lf\n",par->curv_s_step);
   }
   if(par->flag_include_dust && par->flag_beta_d_free) {
     printf("    beta_d : (%d) [%s,",par->index_beta_d_t,par->input_beta_d_t_prior);
@@ -457,7 +468,7 @@ ParamBFoRe *read_params(char *fname)
 
   // Maxmum number of parameters in the model. This is doubled if polarization
   // parameter are independent of temperature parameters.
-  par -> n_param_max = 3;
+  par -> n_param_max = 4;
   if (par -> flag_independent_polarization)
   {
     par -> n_param_max *= 2;
@@ -481,6 +492,17 @@ ParamBFoRe *read_params(char *fname)
       // If not fitting this parameter assign n_param_max and decrement
       // index_novary
       par -> index_beta_s_t = --index_novary;
+    }
+    if (par -> flag_curv_s_free)
+    {
+      // Assign curv_s_t 0 and increment n_spec_vary.
+      par -> index_curv_s_t = par -> n_spec_vary++;
+    }
+    else
+    {
+      // If not fitting this parameter assign n_param_max and decrement
+      // index_novary
+      par -> index_curv_s_t = --index_novary;
     }
   }
   // Repeat for dust ...
@@ -517,6 +539,14 @@ ParamBFoRe *read_params(char *fname)
       {
 	     par -> index_beta_s_p = --index_novary;
       }
+      if (par -> flag_curv_s_free)
+      {
+	       par -> index_curv_s_p = par -> n_spec_vary++;
+      }
+      else
+      {
+	     par -> index_curv_s_p = --index_novary;
+      }
     }
     if (par -> flag_include_dust)
     {
@@ -541,6 +571,7 @@ ParamBFoRe *read_params(char *fname)
   else
   {
     par -> index_beta_s_p = par -> index_beta_s_t;
+    par -> index_curv_s_p = par -> index_curv_s_t;
     par -> index_beta_d_p = par -> index_beta_d_t;
     par -> index_temp_d_p = par -> index_temp_d_t;
   }
@@ -646,7 +677,7 @@ ParamBFoRe *read_params(char *fname)
   {
     printf("Reading prior maps\n");
   }
-  //beta_s T,P
+  // beta_s T
   if (par -> flag_include_synchrotron)
   {
     map_dum = he_read_healpix_map(par -> input_beta_s_t_prior, &nside_dum, 0);
@@ -672,6 +703,9 @@ ParamBFoRe *read_params(char *fname)
       par -> map_prior_widths[par -> index_beta_s_t + par -> n_param_max * ii] = map_dum[ii];
     }
     free(map_dum);
+
+
+    // beta_s P
     if (par -> flag_include_polarization && par -> flag_independent_polarization)
     {
       map_dum = he_read_healpix_map(par -> input_beta_s_p_prior, &nside_dum, 0);
@@ -696,6 +730,61 @@ ParamBFoRe *read_params(char *fname)
 	       par->map_prior_widths[par->index_beta_s_p+par->n_param_max*ii]=map_dum[ii];
       }
       free(map_dum);
+    }
+
+    // curv_s T
+    if (par -> include_curvature)
+    {
+      map_dum = he_read_healpix_map(par -> input_curv_s_t_prior, &nside_dum, 0);
+      if (nside_dum != par -> nside_spec)
+      {
+        report_error(1, "Read wrong nside\n");
+      }
+      he_ring2nest_inplace(map_dum, nside_dum);
+      for (ii = 0; ii < par -> n_pix_spec; ii++)
+      {
+        par -> map_prior_centres[par -> index_curv_s_t + par -> n_param_max * ii] = map_dum[ii];
+      }
+      free(map_dum);
+      map_dum = he_read_healpix_map(par -> input_curv_s_t_prior, &nside_dum, 1);
+      if (nside_dum != par -> nside_spec)
+      {
+        report_error(1, "Read wrong nside\n");
+      }
+      he_ring2nest_inplace(map_dum, nside_dum);
+
+      for (ii = 0; ii < par -> n_pix_spec; ii++)
+      {
+        par -> map_prior_widths[par -> index_curv_s_t + par -> n_param_max * ii] = map_dum[ii];
+      }
+      free(map_dum);
+
+      // curv_s P
+      if (par -> flag_include_polarization && par -> flag_independent_polarization)
+      {
+        map_dum = he_read_healpix_map(par -> input_curv_s_p_prior, &nside_dum, 0);
+        if (nside_dum != par -> nside_spec)
+        {
+  	       report_error(1,"Read wrong nside\n");
+        }
+        he_ring2nest_inplace(map_dum, nside_dum);
+        for (ii = 0; ii < par -> n_pix_spec; ii++)
+        {
+  	       par -> map_prior_centres[par -> index_curv_s_p + par -> n_param_max * ii] = map_dum[ii];
+        }
+        free(map_dum);
+        map_dum = he_read_healpix_map(par -> input_curv_s_p_prior, &nside_dum, 1);
+        if(nside_dum != par -> nside_spec)
+        {
+  	       report_error(1,"Read wrong nside\n");
+        }
+        he_ring2nest_inplace(map_dum, nside_dum);
+        for(ii = 0; ii < par -> n_pix_spec; ii++)
+        {
+  	       par->map_prior_widths[par->index_curv_s_p+par->n_param_max*ii]=map_dum[ii];
+        }
+        free(map_dum);
+      }
     }
   }
 

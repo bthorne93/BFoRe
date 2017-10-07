@@ -133,6 +133,8 @@
     int n_dof_pix;
     int index_beta_s_t;
     int index_beta_s_p;
+    int index_curv_s_t;
+    int index_curv_s_p;
     int index_beta_d_t;
     int index_beta_d_p;
     int index_temp_d_t;
