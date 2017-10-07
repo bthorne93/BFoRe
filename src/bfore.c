@@ -124,7 +124,7 @@ void pixel_state_free(PixelState *pst,ParamBFoRe *par)
   free(pst);
 }
 
-static flouble freq_evolve(int spec_type,double nu_0,double beta,double temp, double curve, double nu)
+static flouble freq_evolve(int spec_type,double nu_0,double beta,double temp, double curv, double nu)
 {
   flouble x_to,x_from,ex;
   switch(spec_type)  {
