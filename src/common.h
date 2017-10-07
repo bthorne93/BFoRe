@@ -79,6 +79,8 @@
 
   char input_beta_s_t_prior[256]; //Path to prior map on beta_s (temperature)
   char input_beta_s_p_prior[256]; //Path to prior map on beta_s (polarization)
+  char input_curv_s_t_prior[256]; //Path to prior map on curv_s (temperature)
+  char input_curv_s_p_prior[256]; //Path to prior map on curv_s (polarization)
   char input_beta_d_t_prior[256]; //Path to prior map on beta_d (temperature)
   char input_beta_d_p_prior[256]; //Path to prior map on beta_d (polarization)
   char input_temp_d_t_prior[256]; //Path to prior map on temp_d (temperature)
@@ -116,6 +118,7 @@
 
   int flag_independent_polarization; //Assume independent spectral indices in polarization?
   int flag_beta_s_free; //Is beta_s free?
+  int flag_curv_s_free; //Is curv_s free?
   int flag_beta_d_free; //Is beta_d free?
   int flag_temp_d_free; //Is temp_d free?
   int n_param_max; //Maximum number of parameters to sample
@@ -123,11 +126,14 @@
   int n_dof_pix; //Number of degrees of freedom per spectral index pixel
   int index_beta_s_t; //Index for beta_s (temperature)
   int index_beta_s_p; //Index for beta_s (polarization)
+  int index_curv_s_t; //Index for curv_s (temperature)
+  int index_curv_s_p; //Index for curv_s (polarization)
   int index_beta_d_t; //Index for beta_d (temperature)
   int index_beta_d_p; //Index for beta_d (polarization)
   int index_temp_d_t; //Index for temp_d (temperature)
   int index_temp_d_p; //Index for temp_d (polarization)
   flouble beta_s_step; //Initial step size in beta_s
+  flouble curv_s_step; //Initial step size in curv_s
   flouble beta_d_step; //Initial step size in beta_d
   flouble temp_d_step; //Initial step size in temp_d
   flouble nu0_s; //Reference frequency for synchrotron
