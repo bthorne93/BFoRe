@@ -171,6 +171,7 @@ static void compute_f_matrix(ParamBFoRe *par,flouble *x_spec,flouble *f_matrix)
         f_matrix[par->index_synchrotron+par->n_comp*(inu+ipol*par->n_nu)]=
         freq_evolve(3,par->nu0_s,x_spec[par->index_beta_s_p],-1,x_spec[par->index_curv_s_p],nu);
       }
+    }
       else
       {
       f_matrix[par->index_synchrotron+par->n_comp*(inu+0*par->n_nu)]=
