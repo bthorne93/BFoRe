@@ -136,6 +136,7 @@ static ParamBFoRe *param_bfore_new(void)
 
   par->flag_include_cmb=0;
   par->flag_include_synchrotron=0;
+  par->flag_include_curvature=0;
   par->flag_include_dust=0;
   par->flag_include_volume_prior=0;
   par->flag_use_marginal=0;
@@ -307,12 +308,12 @@ ParamBFoRe *read_params(char *fname)
       sprintf(par->input_noise_prefix,"%s",s2);
     else if(!strcmp(s1,"input_beta_s_t_prior="))
       sprintf(par->input_beta_s_t_prior,"%s",s2);
-      else if(!strcmp(s1,"input_curv_s_t_prior="))
-        sprintf(par->input_curv_s_t_prior,"%s",s2);
+    else if(!strcmp(s1,"input_curv_s_t_prior="))
+      sprintf(par->input_curv_s_t_prior,"%s",s2);
     else if(!strcmp(s1,"input_beta_s_p_prior="))
       sprintf(par->input_beta_s_p_prior,"%s",s2);
-      else if(!strcmp(s1,"input_curv_s_p_prior="))
-        sprintf(par->input_curv_s_p_prior,"%s",s2);
+    else if(!strcmp(s1,"input_curv_s_p_prior="))
+      sprintf(par->input_curv_s_p_prior,"%s",s2);
     else if(!strcmp(s1,"input_beta_d_t_prior="))
       sprintf(par->input_beta_d_t_prior,"%s",s2);
     else if(!strcmp(s1,"input_beta_d_p_prior="))
@@ -333,6 +334,8 @@ ParamBFoRe *read_params(char *fname)
       par->flag_include_cmb=atoi(s2);
     else if(!strcmp(s1,"include_synchrotron="))
       par->flag_include_synchrotron=atoi(s2);
+    else if(!strcmp(s1,"include_curvature="))
+      par->flag_include_curvature=atoi(s2);
     else if(!strcmp(s1,"include_dust="))
       par->flag_include_dust=atoi(s2);
     else if(!strcmp(s1,"independent_polarization="))
@@ -343,8 +346,8 @@ ParamBFoRe *read_params(char *fname)
       par->flag_use_marginal=atoi(s2);
     else if(!strcmp(s1,"beta_s_free="))
       par->flag_beta_s_free=atoi(s2);
-      else if(!strcmp(s1,"curv_s_free="))
-        par->flag_curv_s_free=atoi(s2);
+    else if(!strcmp(s1,"curv_s_free="))
+      par->flag_curv_s_free=atoi(s2);
     else if(!strcmp(s1,"beta_d_free="))
       par->flag_beta_d_free=atoi(s2);
     else if(!strcmp(s1,"temp_d_free="))
@@ -371,8 +374,8 @@ ParamBFoRe *read_params(char *fname)
       par->n_output_rate=atoi(s2);
     else if(!strcmp(s1,"beta_s_step="))
       par->beta_s_step=atof(s2);
-      else if(!strcmp(s1,"curv_s_step="))
-        par->curv_s_step=atof(s2);
+    else if(!strcmp(s1,"curv_s_step="))
+      par->curv_s_step=atof(s2);
     else if(!strcmp(s1,"beta_d_step="))
       par->beta_d_step=atof(s2);
     else if(!strcmp(s1,"temp_d_step="))
