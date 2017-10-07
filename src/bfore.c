@@ -1040,7 +1040,7 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
   flouble *amps_covar = &(par -> map_components_covar[id_cell * par -> n_comp * par -> n_comp]);
   // Declare some working quantities.
   flouble *x_spec_old = my_calloc(par -> n_param_max, sizeof(flouble));
-  flouble *x_spec_ml = my_calloc(par -> n_param_max, sizeof(flouble));
+  flouble *x_spec_mean = my_calloc(par -> n_param_max, sizeof(flouble));
   flouble *x_spec_new = my_calloc(par -> n_param_max, sizeof(flouble));
   gsl_matrix *mat_step = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
   gsl_matrix *cov_save = gsl_matrix_alloc(par -> n_spec_vary, par -> n_spec_vary);
