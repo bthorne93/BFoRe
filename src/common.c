@@ -139,7 +139,7 @@ static ParamBFoRe *param_bfore_new(void)
 
     par->flag_include_cmb = 0;
     par->flag_include_synchrotron = 0;
-    par->flag_include_sy = 0;
+    par->flag_include_curvature = 0;
     par->flag_include_dust = 0;
     par->flag_include_volume_prior = 0;
     par->flag_use_marginal = 0;
