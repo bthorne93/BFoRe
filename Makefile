@@ -1,6 +1,6 @@
 SERIAL_CC= icc
 MPI_CC= mpicc
-WOPT_DEFAULT= -Wall -O3
+WOPT_DEFAULT= -Wall -O3 -xhost -ipo
 ADD_OMP= yes
 ADD_MPI= yes
 DEBUG_VERSION= no
