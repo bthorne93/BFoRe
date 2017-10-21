@@ -1394,6 +1394,18 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
     memset(amps_mean, 0, par->n_sub * par->n_pol * par->n_comp * sizeof(flouble));
     memset(amps_covar, 0, par->n_sub * par->n_pol * par->n_comp * par->n_comp * sizeof(flouble));
 
+
+    /**************************************************************************
+      * This section attempts to find a maximum in the likelihood from the
+      * initial point (assigned by the priors). It applies the Powell
+      * minimization algorithm to the marignalized spectral parmaeter posterior.
+      * It then computes the covariance of the posterior at this point.
+      * These ML and covariance are then used as the starting point to draw
+      * spectral parameter samples for the burn-in phase of sampling.
+      * The ML point is stored in x_spec_old.
+      * The covariance is stored in cov_spec. 
+      ************************************************************************/
+
     // Assign the current pixel state the prior means.
     restart_mcmc(par, pst_old, x_spec_old, mat_step, 1.);
     // Compute the maximum likelihood of the marginal posterior and store
@@ -1432,7 +1444,7 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
     }
     if(err == GSL_EDOM)
     {
-        dbg_printf(do_print, "Something is wrong iwth the covariance matrix\n");
+        dbg_printf(do_print, "Something is wrong with the covariance matrix\n");
         report_error(1, "Exiting\n");
     }
 
@@ -1453,6 +1465,10 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
                 gsl_matrix_set(mat_step, ic1, ic2, factor_rescale * gsl_matrix_get(cov_spec, ic1, ic2));
         }
     }
+
+    /**************************************************************************
+      * This section is the burn-in phase.
+      ************************************************************************/
 
     if(par->n_spec_vary > 0)
     {
