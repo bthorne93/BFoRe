@@ -834,18 +834,28 @@ static int draw_spectral_indices_marginal(ParamBFoRe *par, Rng *rng, flouble *da
     int ipar;
     double ratio;
     memcpy(x_spec_new, x_spec_old, par->n_param_max * sizeof(flouble));
+    // Initialize a set of random gaussian variables with unit variance of
+    // length equal to number of varying spectral parameters.
     for(ipar = 0; ipar < par->n_spec_vary; ipar++)
         pst_new->rand_spec[ipar] = rand_gauss(rng);
+
     for(ipar = 0; ipar < par->n_spec_vary; ipar++)
     {
         int ipar2;
         for(ipar2 = 0; ipar2 <= ipar; ipar2++)
-            x_spec_new[ipar] += gsl_matrix_get(mat_step, ipar, ipar2) * pst_new->rand_spec[ipar2];
+          // Generate new proposal position in x_spec_new from the sum of all
+          // covariances between that parameter and other parameters.
+          x_spec_new[ipar] += gsl_matrix_get(mat_step, ipar, ipar2) * pst_new->rand_spec[ipar2];
     }
+    // Compute the chi2 of the new point x_spec_new and store the result in
     compute_marginalized_chi2(par, data, noise_w, x_spec_new, pst_new, 0);
 
+    // Compute the likelihood ratio between the new and the old point.
     ratio = exp(-0.5 * (pst_new->chi2 - pst_old->chi2));
 
+    // If this ratio is less than one compare to a randomly generated number
+    // between 0 and 1. If the randomly generated number is larger than the
+    // likelihood ratio do not advance. In all other cases accept the proposal.
     if(ratio < 1)
     {
         if(rand_real01(rng) > ratio)
@@ -1403,7 +1413,7 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
       * These ML and covariance are then used as the starting point to draw
       * spectral parameter samples for the burn-in phase of sampling.
       * The ML point is stored in x_spec_old.
-      * The covariance is stored in cov_spec. 
+      * The covariance is stored in cov_spec.
       ************************************************************************/
 
     // Assign the current pixel state the prior means.
@@ -1467,7 +1477,9 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
     }
 
     /**************************************************************************
-      * This section is the burn-in phase.
+      * This section is the burn-in phase. We start at
+      * x_spec_old, with covariance cov_spec, and burn par->n_samples_burn
+      * samples.
       ************************************************************************/
 
     if(par->n_spec_vary > 0)
@@ -1475,21 +1487,30 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
         dbg_printf(do_print, "Burning\n");
 
         ratio_accepted = 0;
+        // Initialize an empty vector x_spec_mean before iterating over samples.
+        // This will eventually have the mean of this set of samples assigned
+        // to it.
         for(ic1 = 0; ic1 < par->n_spec_vary; ic1++)
             x_spec_mean[ic1] = 0;
 
         for(i_sample = 0; i_sample < par->n_samples_burn; i_sample++)
         {
+            // Do the Metropolis-Hastings step. This function generates a
+            // proposal step from the covariance matrix, mat_step, and compares
+            // the chi2 at this new point to the old chi2 using the standard
+            // MH procedure. Returns (0), 1 if (not) accepted.
             accepted = draw_spectral_indices_marginal(par, rng, data, noise_w, x_spec_old, pst_old,
                        mat_step, x_spec_new, pst_new); //b_{n+1}(A_{n+1})
             if(accepted)
             {
+                // If the new point is accepted, replace x_spec_old with the
+                // proposed point, stoerd in x_spec_new.
                 PixelState *tmp = pst_old;
                 memcpy(x_spec_old, x_spec_new, par->n_param_max * sizeof(flouble));
                 pst_old = pst_new;
                 pst_new = tmp;
             }
-
+            // Add incrementally to the mean.
             for(ic1 = 0; ic1 < par->n_spec_vary; ic1++)
                 x_spec_mean[ic1] += x_spec_old[ic1];
 
@@ -1507,11 +1528,15 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
                 ratio_accepted = 0;
             }
         }
-
+        // Compute mean of spectral indices in this  burn-in period.
         for(ic1 = 0; ic1 < par->n_spec_vary; ic1++)
             x_spec_mean[ic1] /= par->n_samples_burn;
     }
 
+
+    /*******************************************
+    * Do some debugging after the burn-in phase.
+    ********************************************/
     dbg_printf(do_print, "Current: ");
     for(ic1 = 0; ic1 < par->n_spec_vary; ic1++)
         dbg_printf(do_print, "%lf ", x_spec_old[ic1]);
@@ -1546,7 +1571,7 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
     }
     if(err == GSL_EDOM)
     {
-        dbg_printf(do_print, "Something is wrong iwth the covariance matrix\n");
+        dbg_printf(do_print, "Something is wrong with the covariance matrix\n");
         report_error(1, "Exiting\n");
     }
 
@@ -1567,6 +1592,11 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
                 gsl_matrix_set(mat_step, ic1, ic2, factor_rescale * gsl_matrix_get(cov_spec, ic1, ic2));
         }
     }
+
+    /**************************************************************************
+    * In this section we do the actual MH sampling. Starting at the point at
+    * the end of the burn-in phase. 
+    **************************************************************************/
 
     dbg_printf(do_print, "Starting actual sampling\n");
 #ifdef _DEBUG
