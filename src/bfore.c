@@ -71,6 +71,12 @@ static void decouple_covariance(ParamBFoRe *par, gsl_matrix *cov)
 
 static void init_priors(ParamBFoRe *par, PixelState *pst, int ipix_big)
 {
+  /*
+    Initialize pixel state from priors. For each spectral parameter, if it
+    is being varied then include the width of the prior. If it is not being
+    varied then do not bother, as we juse use the given mean prior as the
+    definite value of that parameter.
+    */
     pst->prior_mean[par->index_beta_s_t] = par->map_prior_centres[par->index_beta_s_t + par->n_param_max * ipix_big];
     if(par->flag_beta_s_free)
     {
@@ -170,6 +176,8 @@ void pixel_state_free(PixelState *pst, ParamBFoRe *par)
 
 static flouble freq_evolve(int spec_type, double nu_0, double beta, double temp, double curv, double nu)
 {
+  // Calculate the frequency scaling matrix for the given spectral type, and
+  // parameters.
     flouble x_to, x_from, ex;
     switch(spec_type)
     {
@@ -196,24 +204,40 @@ static flouble freq_evolve(int spec_type, double nu_0, double beta, double temp,
 
 static void compute_f_matrix(ParamBFoRe *par, flouble *x_spec, flouble *f_matrix)
 {
+    // Compute the frequency-scaling matrix, F, at the point in parmaeter space
+    // specified by x_spec, under configuration specified by par (contains
+    // information about freuqencies, and which model we are using). Store
+    // the result in array f_matrix.
     int inu;
+    // Loop over frequencies of observations.
     for(inu = 0; inu < par->n_nu; inu++)
     {
         int ipol;
+        // Get the frequency at this point in the loop.
         flouble nu = par->freqs[inu];
+        // If we want to include CMB calculate it for this frequency.
         if(par->flag_include_cmb)
         {
+            // Loop over all the polarizations.
             for(ipol = 0; ipol < par->n_pol; ipol++)
             {
+                // Calculate the frequency scaling for this frequency, and Store
+                // it in the given matrix.
                 f_matrix[par->index_cmb + par->n_comp * (inu + ipol * par->n_nu)] =
                     freq_evolve(0, -1, -1, -1, -1, nu);
             }
         }
+        // If we want to include synchrotron calculate it for this frequency.
         if(par->flag_include_synchrotron)
         {
-
+            // If we choose to include curvature in the fit we will have a
+            // different argument for the f_matrix so we split this from the
+            // case of not including curvature.
             if(par->flag_include_curvature)
             {
+                // Calculate the f_matrix for intensity and then separately
+                // for polarization, in which there will be different
+                // spectral parameters.
                 f_matrix[par->index_synchrotron + par->n_comp * (inu + 0 * par->n_nu)] =
                     freq_evolve(3, par->nu0_s, x_spec[par->index_beta_s_t], -1, x_spec[par->index_curv_s_t], nu);
                 for(ipol = 1; ipol < par->n_pol; ipol++)
@@ -224,6 +248,7 @@ static void compute_f_matrix(ParamBFoRe *par, flouble *x_spec, flouble *f_matrix
             }
             else
             {
+                // Now do the case with no curvature.
                 f_matrix[par->index_synchrotron + par->n_comp * (inu + 0 * par->n_nu)] =
                     freq_evolve(1, par->nu0_s, x_spec[par->index_beta_s_t], -1, -1, nu);
                 for(ipol = 1; ipol < par->n_pol; ipol++)
@@ -233,6 +258,7 @@ static void compute_f_matrix(ParamBFoRe *par, flouble *x_spec, flouble *f_matrix
                 }
             }
         }
+        // If we want to include dust, compute it for this frequency.
         if(par->flag_include_dust)
         {
             f_matrix[par->index_dust + par->n_comp * (inu + 0 * par->n_nu)] =
@@ -291,6 +317,9 @@ static flouble chi2_prior_correctvolume(ParamBFoRe *par, PixelState *pst,
 
 static flouble chi2_prior(ParamBFoRe *par, PixelState *pst, flouble *x_spec)
 {
+    // For each parameter we are varying compute the difference between the
+    // input parameter vecotr x_spec and the prior mean for that parmaeter,
+    // normalized by the prior standard deviation.
     int ipar;
     flouble x, chi2 = 0;
 
@@ -341,48 +370,74 @@ static double compute_chi2(ParamBFoRe *par, flouble *data, flouble *noise_w,
 static void compute_marginalized_chi2(ParamBFoRe *par, flouble *data, flouble *noise_w,
                                       flouble *x_spec, PixelState *pst, flouble subtract)
 {
+    // Compute marginalized chi squared at the point in parameter space
+    // specified by parameter vector x_spec, and store the result in pst->chi2.
+    // This will involved a calculation of the frequency scaling matrix,
+    // for each frequency and polarization, and a calculation of the
     int ipix;
     flouble offset = subtract / (par->n_sub * par->n_pol * par->n_comp);
 
+    // Compute the difference between the input parameter vector x_spec and
+    // the prior mean, prior_m, normalized by the prior standard deviation,
+    // prior_std: (x_spec - prior_mean) / prior_std.
     pst->chi2 = chi2_prior(par, pst, x_spec);
+    // Compute the frequency-scaling matrix at this parameter vector, x_spec.
+    // Store the result in the pixel state, pst->f_matrix.
     compute_f_matrix(par, x_spec, pst->f_matrix);
-
+    // Loop over sub pixels.
     for(ipix = 0; ipix < par->n_sub; ipix++)
     {
         int ipol;
+        // Loop over polarizations
         for(ipol = 0; ipol < par->n_pol; ipol++)
         {
-            int ic1, inu;
-            int index_pix = ipol + par->n_pol * ipix;
-            gsl_matrix *mat_here = pst->cov_inv[index_pix];
-            gsl_vector *vec_here = pst->vec_mean[index_pix];
+            int ic1, inu; // indices for components (ic1) and freuqencies (inu)
+            int index_pix = ipol + par->n_pol * ipix; // index for individual sub-pixels
+            gsl_matrix *mat_here = pst->cov_inv[index_pix]; // dummy matrix
+            gsl_vector *vec_here = pst->vec_mean[index_pix]; // dummy vector
             gsl_matrix_set_zero(mat_here);
             gsl_vector_set_zero(pst->vaux);
+            // Loop over freuqencies for this sub-pixel. In this loop we
+            // incrementally sum up contributions from the different
+            // frequencies (which are assumed to have independent contributions)
+            // to the quantities we use to calculate the chi squared.
             for(inu = 0; inu < par->n_nu; inu++)
             {
-                int index_f = par->n_comp * (inu + par->n_nu * ipol);
+                int index_f = par->n_comp * (inu + par->n_nu * ipol); // index of the f_matrix corresponding to this big pixel.
+                // Access the data and noise, which are individual to each
+                // freuqency.
                 flouble invsigma2 = noise_w[inu + par->n_nu * index_pix];
                 flouble data_here = data[inu + par->n_nu * index_pix];
+                // Now loop over the components. This computes F^T N^-1 d
+                // and F^T N_T^-1 T
                 for(ic1 = 0; ic1 < par->n_comp; ic1++)
                 {
                     int ic2;
+                    // Get first scaling matrix entry.
                     flouble fm1 = pst->f_matrix[index_f + ic1];
-                    gsl_vector_set(pst->vaux, ic1, gsl_vector_get(pst->vaux, ic1) + fm1 * data_here * invsigma2);
+                    // Scale the data (data_here) by the scaling matrix (fm1)
+                    // and weight by the expected noise variance in this pixel
+                    // (invsigma2). Note that we are simply multiplying by a
+                    // sigma value since we have assumed white noise.
+                    gsl_vector_set(pst->vaux, ic1, gsl_vector_get(pst->vaux, ic1) + fm1 * data_here * invsigma2); // F^T N^-1 d
                     for(ic2 = 0; ic2 <= ic1; ic2++)
                     {
                         flouble fm2 = pst->f_matrix[index_f + ic2];
-                        gsl_matrix_set(mat_here, ic1, ic2, gsl_matrix_get(mat_here, ic1, ic2) + fm1 * fm2 * invsigma2);
+                        gsl_matrix_set(mat_here, ic1, ic2, gsl_matrix_get(mat_here, ic1, ic2) + fm1 * fm2 * invsigma2); // F^T N^-1 F
                     }
                 }
             }
+            // initialize cholseky decomposition, required for inversion.
             gsl_linalg_cholesky_decomp(mat_here);
             if(par->flag_include_volume_prior == 0)
             {
                 for(ic1 = 0; ic1 < par->n_comp; ic1++)
                     pst->chi2 += 2 * log(gsl_matrix_get(mat_here, ic1, ic1)); //0.5*log(det((F^T N^-1 F)^-1))
             }
+            // invert mat_here in place.
             gsl_linalg_cholesky_invert(mat_here);
-            gsl_blas_dgemv(CblasNoTrans, 1., mat_here, pst->vaux, 0, vec_here); //v_mean = (F^T N^-1 F)^-1 F^T N^-1 d
+            // Compute mat_here * pst->vaux and store in vec_here
+            gsl_blas_dgemv(CblasNoTrans, 1., mat_here, pst->vaux, 0., vec_here); //v_mean = (F^T N^-1 F)^-1 F^T N^-1 d
             for(ic1 = 0; ic1 < par->n_comp; ic1++)
                 pst->chi2 -= gsl_vector_get(pst->vaux, ic1) * gsl_vector_get(vec_here, ic1) + offset; //chi2= (F^T N^-1 d)^T (F^T N^-1 F)^-1 (F^T N^-1 d)
         }
@@ -432,18 +487,6 @@ static void analyze_linear_chi2(ParamBFoRe *par, flouble *data, flouble *noise_w
         }
     }
 }
-
-//static void solve_lower_triangular(int n,gsl_matrix *mat,flouble *v)
-//{
-//  int i;
-//  for(i=0;i<n;i++) {
-//    int j;
-//    flouble res=v[i];
-//    for(j=0;j<i;j++)
-//      res-=v[j]*gsl_matrix_get(mat,i,j);
-//    v[i]=res/gsl_matrix_get(mat,i,i);
-//  }
-//}
 
 static void solve_upper_triangular(int n, gsl_matrix *mat, flouble *v)
 {
@@ -652,6 +695,8 @@ static int compute_covariance_sampling(ParamBFoRe *par, Rng *rng, flouble *data,
 static int compute_covariance_numerical(ParamBFoRe *par, flouble *data, flouble *noise_w,
                                         flouble *x_spec, PixelState *pst, gsl_matrix *cov_out, int ipix_big)
 {
+  // This function seems to be used to compute the covariance of the posterior
+  // around the maximum likelihood point.
     int ic1;
     flouble chi00, chipp, chimm, chipm, chimp, chi_off;
     flouble *diag_save = my_malloc(par->n_spec_vary * sizeof(flouble));
@@ -919,13 +964,18 @@ static void get_ml_marginal(ParamBFoRe *par, flouble *data, flouble *noise_w,
     pc2.pst = pst;
     pc2.x_spec = x_spec;
 
+    /* Powell seems to be a standard approach to minimize something numerically.
+    In this case we seem to be minimizing the marginalized chi-squared.
+    */
     par_pow = powell_params_new(par->n_spec_vary, x_spec, &chi2_marg_func, &pc2, 100, 1E-7);
     powell(par_pow);
 
+    // Store the resulting spectral parameters that minimize the chi-squared.
     for(ii = 0; ii < par->n_spec_vary; ii++)
         x_spec[ii] = par_pow->p[ii];
     free_powell_params(par_pow);
 
+    // Store the resulting chi2 value at the estimated minimum?
     compute_marginalized_chi2(par, data, noise_w, x_spec, pst, 0);
 }
 
@@ -955,15 +1005,26 @@ static int compute_covariance_numerical_b(ParamBFoRe *par, flouble *data, floubl
             pc2.ider = ic1;
 
             gsl_function F;
+            // Note we are using the derivative of the chi2 function, and
+            // in this function we take the derivative again in order to obtain
+            // the covariance of the function around x_spec.
             F.function = &dchi2_marg_func_1p;
             F.params = &pc2;
+            // Compute derivative of function F at point x_spec, with setp size
+            // 1./pst->prior_isigma[ic2], and store in result.
             gsl_deriv_central(&F, x_spec[ic2], 1. / pst->prior_isigma[ic2], &result, &error);
+            // Set all components of the output covariance matrix to be the
+            // derivative of the chi2 function at x_spec.
             gsl_matrix_set(cov_out, ic1, ic2, result);
             if(ic1 != ic2)
                 gsl_matrix_set(cov_out, ic2, ic1, result);
         }
     }
 
+    // Set all temperature - polarization correlations to zero if we request
+    // independent tempearture and polariation.
+    // Divide by two as chi2 function has extra factor of 2 relative to the
+    // definition of likelihood.
     decouple_covariance(par, cov_out);
     for(ic1 = 0; ic1 < par->n_spec_vary; ic1++)
     {
@@ -980,7 +1041,7 @@ static int compute_covariance_numerical_b(ParamBFoRe *par, flouble *data, floubl
         }
     }
 
-    //Invert
+    // Invert second derivative of likelihood to get covariance matrix.
     int err = gsl_linalg_cholesky_decomp(cov_out);
     if(err)
     {
@@ -1293,17 +1354,30 @@ static void compute_covariance_wrap(ParamBFoRe *par, Rng *rng, flouble *data, fl
     }
 }
 
+
+/**Clean pixel by using the approach of maringlizing over amplitudes and
+  * sampling beat, then analytically calculating the first two moments of the
+  * amplitudes, and finally weighting the amplitudes at each step by the
+  * marginal distribution for the index.
+  */
 void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
                                PixelState *pst_new, int ipix_big)
 {
     int i_sample, ic1, ic2, ipix, n_updated, err, accepted;
     flouble ratio_accepted;
+    // Position in output spectral parameter map that this pixel takes.
     int ip_spc = par->n_spec_vary * ipix_big;
+    // n_sub is number of sub-pixels in each large pixel. Therefore id_cell
+    // is the position at which the entries for the amplitudes start in the
+    // output maps.
     int id_cell = ipix_big * par->n_sub * par->n_pol;
+    // Access data corresponding to these pixels.
     flouble *data = &(par->maps_data[id_cell * par->n_nu]);
     flouble *noise_w = &(par->maps_noise_weight[id_cell * par->n_nu]);
+    // Access memory reserved for output data.
     flouble *amps_mean = &(par->map_components_mean[id_cell * par->n_comp]);
     flouble *amps_covar = &(par->map_components_covar[id_cell * par->n_comp * par->n_comp]);
+    // These quantities will be used during the calculation.
     flouble *x_spec_old = my_calloc(par->n_param_max, sizeof(flouble));
     flouble *x_spec_mean = my_calloc(par->n_param_max, sizeof(flouble));
     flouble *x_spec_new = my_calloc(par->n_param_max, sizeof(flouble));
@@ -1314,13 +1388,17 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
     flouble factor_rescale = 2.4 / sqrt((double)(par->n_spec_vary));
     int do_print = (ipix_big == par->dbg_ipix);
 
+    // Initialize values of the spectral index pixels from the priors.
     init_priors(par, pst_old, ipix_big);
     init_priors(par, pst_new, ipix_big);
     memset(amps_mean, 0, par->n_sub * par->n_pol * par->n_comp * sizeof(flouble));
     memset(amps_covar, 0, par->n_sub * par->n_pol * par->n_comp * par->n_comp * sizeof(flouble));
 
-    //Compute ML point
+    // Assign the current pixel state the prior means.
     restart_mcmc(par, pst_old, x_spec_old, mat_step, 1.);
+    // Compute the maximum likelihood of the marginal posterior and store
+    // resulting parameter vector in x_spec_old, and the corresponding chi2 in
+    // pst_old->chi2.
     get_ml_marginal(par, data, noise_w, x_spec_old, pst_old);
     memcpy(x_spec_mean, x_spec_old, par->n_param_max * sizeof(flouble));
 
@@ -1329,7 +1407,8 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
         dbg_printf(do_print, "%lf ", x_spec_old[ic1]);
     dbg_printf(do_print, "\n");
 
-    //Compute Covariance around ML
+    // Compute sample covariance around the maximum likelihood point of the marginal
+    // posterior.
     dbg_printf(do_print, "Computing numerical covariance\n");
     compute_covariance_wrap(par, rng, data, noise_w, x_spec_old, pst_new, pst_old, cov_spec, do_print, ipix_big);
 
