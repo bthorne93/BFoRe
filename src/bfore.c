@@ -440,6 +440,7 @@ static void compute_marginalized_chi2(ParamBFoRe *par, flouble *data, flouble *n
             gsl_blas_dgemv(CblasNoTrans, 1., mat_here, pst->vaux, 0., vec_here); //v_mean = (F^T N^-1 F)^-1 F^T N^-1 d
             for(ic1 = 0; ic1 < par->n_comp; ic1++)
                 pst->chi2 -= gsl_vector_get(pst->vaux, ic1) * gsl_vector_get(vec_here, ic1) + offset; //chi2= (F^T N^-1 d)^T (F^T N^-1 F)^-1 (F^T N^-1 d)
+                printf("%lf", pst->chi2)
         }
     }
 }
@@ -1595,7 +1596,7 @@ void clean_pixel_from_marginal(ParamBFoRe *par, Rng *rng, PixelState *pst_old,
 
     /**************************************************************************
     * In this section we do the actual MH sampling. Starting at the point at
-    * the end of the burn-in phase. 
+    * the end of the burn-in phase.
     **************************************************************************/
 
     dbg_printf(do_print, "Starting actual sampling\n");

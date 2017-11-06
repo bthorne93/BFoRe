@@ -1,16 +1,16 @@
-SERIAL_CC= icc
+SERIAL_CC= gcc
 MPI_CC= mpicc
-WOPT_DEFAULT= -Wall -O3 -xhost -ipo
+WOPT_DEFAULT= -Wall -Werror
 ADD_OMP= yes
 ADD_MPI= yes
 DEBUG_VERSION= no
 DEBUG_SINGLEPIX= no
-LIB_GSL= -L/home/damonge/lib
-INC_GSL= -I/home/damonge/include
-LIB_HP=
-INC_HP=
-LIB_FITS=
-INC_FITS=
+LIB_GSL= -L
+INC_GSL= -I
+LIB_HP= -L/home/bthorne/Codes/Healpix_3.31/lib
+INC_HP= -I/home/bthorne/Codes/Healpix_3.31/include/chealpix.h
+LIB_FITS= 
+INC_FITS= 
 
 WOPT=$(WOPT_DEFAULT) -DHAVE_INLINE -DGSL_RANGE_CHECK_OFF
 ifeq ($(ADD_OMP),yes)
