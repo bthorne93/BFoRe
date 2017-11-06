@@ -7,10 +7,10 @@ DEBUG_VERSION= no
 DEBUG_SINGLEPIX= no
 LIB_GSL= -L
 INC_GSL= -I
-LIB_HP= -L/home/bthorne/Codes/Healpix_3.31/lib
-INC_HP= -I/home/bthorne/Codes/Healpix_3.31/include/chealpix.h
-LIB_FITS= 
-INC_FITS= 
+LIB_HP= -L/users/damonge/lib
+INC_HP= -I/users/damonge/include
+LIB_FITS=
+INC_FITS=
 
 WOPT=$(WOPT_DEFAULT) -DHAVE_INLINE -DGSL_RANGE_CHECK_OFF
 ifeq ($(ADD_OMP),yes)
