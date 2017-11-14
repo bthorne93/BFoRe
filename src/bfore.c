@@ -441,7 +441,6 @@ static void compute_marginalized_chi2(ParamBFoRe *par, flouble *data, flouble *n
             for(ic1 = 0; ic1 < par->n_comp; ic1++)
             {
                 pst->chi2 -= gsl_vector_get(pst->vaux, ic1) * gsl_vector_get(vec_here, ic1) + offset; //chi2= (F^T N^-1 d)^T (F^T N^-1 F)^-1 (F^T N^-1 d)
-                printf("%lf \n", gsl_vector_get(pst->vaux, ic1) * gsl_vector_get(vec_here, ic1));
             }
         }
     }
