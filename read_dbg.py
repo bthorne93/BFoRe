@@ -1,11 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import healpy as hp
 import sys as sys
+mpl.style.use('blt')
 
 fname_read=sys.argv[1]
-import matplotlib as mpl
-mpl.style.use("/home/bthorne/.config/matplotlib/blt_paper.pltstyle")
+
+
 def read_debug(fname) :
     f=open(fname,"rb")
     fsize,ipix,_, nside,nside_spec,n_sub,n_nu,n_pol,n_comp,n_spec_vary,n_samples,nb_samples=np.fromfile(f,dtype=np.int32,count=12)
